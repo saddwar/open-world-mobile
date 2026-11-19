@@ -2,22 +2,32 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#101820">
+  <meta name="description" content="Open World Mobile — мобильный браузерный 3D-город.">
   <title>Open World Mobile</title>
+  <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div id="loading">Загрузка мира…</div>
-  <div id="hud">
-    <div class="brand">OPEN WORLD <span>MOBILE</span></div>
-    <div id="status">Исследуй город</div>
+  <div id="game-root"></div>
+  <div id="loading"><div class="loader"></div><strong>OPEN WORLD</strong><span>Создаём город…</span></div>
+  <header id="hud">
+    <div class="brand">OPEN WORLD <b>MOBILE</b></div>
+    <div class="hud-row"><span class="dot"></span><span id="mission-label">СВОБОДНОЕ ИССЛЕДОВАНИЕ</span></div>
+    <div id="location">Центральный район</div>
+  </header>
+  <div id="top-right"><div id="clock">08:30</div><div id="weather">☀ ЯСНО</div></div>
+  <div id="minimap-wrap"><canvas id="minimap" width="160" height="160"></canvas></div>
+  <div id="message" aria-live="polite"></div>
+  <div id="controls">
+    <div id="stick-zone" aria-label="Движение"><div id="stick"><i></i></div></div>
+    <div id="look-help">ПОВОРОТ КАМЕРЫ</div>
+    <button id="action" class="action hidden">ВЗАИМОДЕЙСТВИЕ</button>
+    <button id="jump" class="round-button">ПРЫЖОК</button>
+    <button id="sprint" class="round-button small">БЕГ</button>
   </div>
-  <div id="touch-ui">
-    <div id="stick-zone"><div id="stick"><div></div></div></div>
-    <button id="jump">ПРЫЖОК</button>
-  </div>
-  <div id="hint">Проведи пальцем справа, чтобы повернуть камеру</div>
+  <footer id="bottom-hint">ЛЕВЫЙ СТИК — ДВИЖЕНИЕ · ПРАВАЯ ЧАСТЬ — КАМЕРА</footer>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
