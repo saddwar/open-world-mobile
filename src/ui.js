@@ -2,7 +2,14 @@ export class HUD {
   constructor(world){
     this.world=world;this.status=document.getElementById('location');this.clock=document.getElementById('clock');
     this.map=document.getElementById('minimap');this.ctx=this.map.getContext('2d');this.message=document.getElementById('message');
-    this.lastMessage=0;this.showMessage('Добро пожаловать! Исследуй город.',3200);
+    this.lastMessage=0;this.paused=false;
+    const menu=document.getElementById('game-menu');
+    const toggle=document.getElementById('menu-toggle');
+    const resume=document.getElementById('resume-game');
+    const setPaused=value=>{this.paused=value;menu.classList.toggle('hidden',!value);};
+    toggle.addEventListener('click',()=>setPaused(!this.paused));
+    resume.addEventListener('click',()=>setPaused(false));
+    this.showMessage('Добро пожаловать! Исследуй город.',3200);
   }
   update(position,time){
     this.status.textContent=Math.hypot(position.x,position.z)<48?'Центральный район':Math.abs(position.x)>100?'Западный район':Math.abs(position.z)>100?'Жилой район':'Городские улицы';
