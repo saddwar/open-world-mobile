@@ -42,9 +42,11 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, 0.033);
   last = now; elapsed += dt;
-  controls.update(dt);
-  player.update(dt, controls, world, elapsed);
-  world.update(dt, elapsed, player.position);
+  if(!hud.paused){
+    controls.update(dt);
+    player.update(dt, controls, world, elapsed);
+    world.update(dt, elapsed, player.position);
+  }
   const target = player.position.clone().add(new THREE.Vector3(0, 1.35, 0));
   const distance = controls.zoom;
   const offset = new THREE.Vector3(Math.sin(controls.yaw) * distance, 3.4, Math.cos(controls.yaw) * distance);
