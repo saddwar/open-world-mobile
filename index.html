@@ -13,13 +13,14 @@
   <div id="game-root"></div>
   <div id="loading"><div class="loader"></div><strong>OPEN WORLD</strong><span>Создаём город…</span></div>
   <header id="hud">
-    <div class="brand">OPEN WORLD <b>MOBILE</b></div>
+    <div class="brand">OPEN WORLD <b>MOBILE</b></div><button id="menu-toggle" aria-label="Открыть меню">☰</button>
     <div class="hud-row"><span class="dot"></span><span id="mission-label">СВОБОДНОЕ ИССЛЕДОВАНИЕ</span></div>
     <div id="location">Центральный район</div>
   </header>
   <div id="top-right"><div id="clock">08:30</div><div id="weather">☀ ЯСНО</div></div>
   <div id="minimap-wrap"><canvas id="minimap" width="160" height="160"></canvas></div>
   <div id="message" aria-live="polite"></div>
+  <section id="game-menu" class="hidden" aria-label="Игровое меню"><div class="menu-card"><div class="menu-kicker">OPEN WORLD MOBILE</div><h2>ПАУЗА</h2><p>Город открыт для исследования.</p><div class="menu-stats"><span>РЕЖИМ</span><b>Свободная прогулка</b><span>ЦЕЛЬ</span><b>Найди светящийся маркер в парке</b></div><button id="resume-game">ПРОДОЛЖИТЬ ИГРУ</button></div></section>
   <div id="controls">
     <div id="stick-zone" aria-label="Движение"><div id="stick"><i></i></div></div>
     <div id="look-help">ПОВОРОТ КАМЕРЫ</div>
