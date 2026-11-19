@@ -73,7 +73,7 @@ export class World {
   tree(x,z,s=1){
     const {trunk,leaf}=this.materials;
     const t=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.28*s,2.3*s,7),trunk);
-    t.position.set(x,1.15*s,z); t.castShadow=true; this.scene.add(t);
+    t.position.set(x,1.15*s,z); t.castShadow=true; this.scene.add(t); this.blockers.push({x,z,hw:.72*s,hd:.72*s});
     const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(1.25*s,1),leaf);
     crown.position.set(x,2.8*s,z); crown.castShadow=true; this.scene.add(crown);
   }
@@ -82,7 +82,7 @@ export class World {
     const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.1,4.5,7),this.materials.lamp); pole.position.y=2.25; g.add(pole);
     const arm=new THREE.Mesh(new THREE.BoxGeometry(.9,.08,.08),this.materials.lamp); arm.position.set(.38,4.35,0); g.add(arm);
     const bulb=new THREE.Mesh(new THREE.SphereGeometry(.16,8,8),mat(0xffe5a6,.25)); bulb.position.set(.75,4.25,0); g.add(bulb);
-    g.position.set(x,0,z); this.scene.add(g);
+    g.position.set(x,0,z); this.scene.add(g); this.blockers.push({x,z,hw:.42,hd:.42});
   }
   makePark(){
     const park=box(25,.12,25,mat(0x77936a),17,.01,17,this.scene,false);
@@ -101,8 +101,8 @@ export class World {
     for(let i=0;i<9;i++){
       const g=this.createCar(colors[i%colors.length]);
       const lane=(i%2?1:-1), z=-150+i*36;
-      g.position.set(lane*2,0,z); g.rotation.y=lane===1?Math.PI/2:-Math.PI/2;
-      this.scene.add(g); this.traffic.push({mesh:g,speed:5+(i%4)*1.5,axis:'x',dir:lane});
+      g.position.set(lane*2,0,z); const dir=lane===1?1:-1; g.rotation.y=dir>0?Math.PI:0;
+      this.scene.add(g); this.traffic.push({mesh:g,speed:5+(i%4)*1.5,dir});
     }
   }
   createCar(color){
@@ -129,7 +129,9 @@ export class World {
   }
   isBlocked(x,z,r=.55){
     if(Math.abs(x)>250||Math.abs(z)>250)return true;
-    return this.blockers.some(b=>Math.abs(x-b.x)<b.hw+r&&Math.abs(z-b.z)<b.hd+r);
+    if(this.blockers.some(b=>Math.abs(x-b.x)<b.hw+r&&Math.abs(z-b.z)<b.hd+r))return true;
+    if(this.traffic.some(c=>Math.abs(x-c.mesh.position.x)<1.35+r&&Math.abs(z-c.mesh.position.z)<2.25+r))return true;
+    return this.npcs.some(n=>Math.abs(x-n.mesh.position.x)<.48+r&&Math.abs(z-n.mesh.position.z)<.48+r);
   }
   update(dt,time,playerPosition){
     this.time=time; this.marker.rotation.y= time*.55; this.marker.position.y=.08+Math.sin(time*2)*.08;
