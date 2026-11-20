@@ -60,7 +60,7 @@ function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z
 function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k)&&blocks.get(k)!==null)return false;blocks.set(k,type);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return true}
 function removeBlock(x,y,z){const k=key(x,y,z),old=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!old)return null;blocks.set(k,null);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return old}
 // Player camera is truly first-person; only a small arm and held block are visible.
-const player={x:0,y:heightAt(0,0)+1,z:0};loadAround();
+const player={x:0,y:heightAt(0,0)+1,z:0};loadAround();loadAround();
 const hand=new THREE.Group();camera.add(hand);hand.position.set(.42,-.38,-.62);
 const sleeve=new THREE.Mesh(new THREE.BoxGeometry(.18,.25,.22),new THREE.MeshLambertMaterial({color:0x3477ad}));sleeve.position.set(0,-.12,0);hand.add(sleeve);
 const held=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),materials.grass);held.position.set(0,.02,-.17);hand.add(held);camera.add(hand);scene.add(camera);
