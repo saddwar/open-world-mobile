@@ -107,8 +107,34 @@ const animalLoadPromises=Object.entries(animalAssets).map(async([type,url])=>{
   for(const animal of animalList)if(animal.userData.type===type)attachAnimalModel(animal,type);
  }catch(error){console.warn('Не удалось загрузить модель животного:',type,error)}
 });
+function attachFallbackAnimal(wrapper,type){
+ const root=new THREE.Group();
+ const mat=(color)=>new THREE.MeshLambertMaterial({color});
+ const bodyColor=type==='pig'?0xe58b91:type==='cow'?0xf0eee5:0xe8e2d3;
+ const body=new THREE.Mesh(new THREE.BoxGeometry(type==='cow'?0.9:0.72,type==='sheep'?0.72:0.58,type==='cow'?0.52:0.48),mat(bodyColor));
+ body.position.y=type==='cow'?0.78:0.62;root.add(body);
+ if(type==='sheep'){
+  const wool=new THREE.Mesh(new THREE.IcosahedronGeometry(.43,1),mat(0xf5f0e5));wool.position.set(0,.82,0);wool.scale.set(1,.82,1.15);root.add(wool);
+ }
+ const head=new THREE.Mesh(new THREE.BoxGeometry(.34,.34,.34),mat(bodyColor));head.position.set(0,type==='cow'?.98:.83,.38);root.add(head);
+ const muzzle=new THREE.Mesh(new THREE.BoxGeometry(.24,.17,.13),mat(type==='pig'?0xf3a6a8:0xd8c9b5));muzzle.position.set(0,type==='cow'? .91:.76,.59);root.add(muzzle);
+ for(const x of [-.23,.23]){
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(.14,.42,.15),mat(type==='cow'?0xeee9df:bodyColor));leg.position.set(x,.25,.13);root.add(leg);
+  const leg2=leg.clone();leg2.position.z=-.22;root.add(leg2);
+  if(type==='cow'){const patch=new THREE.Mesh(new THREE.BoxGeometry(.25,.2,.025),mat(0x343434));patch.position.set(x*.8,.82,-.267);root.add(patch)}
+ }
+ if(type==='pig'){
+  for(const x of [-.12,.12]){const nostril=new THREE.Mesh(new THREE.BoxGeometry(.035,.05,.02),mat(0x713e43));nostril.position.set(x,.76,.66);root.add(nostril)}
+ }else if(type==='cow'){
+  for(const x of [-.12,.12]){const horn=new THREE.Mesh(new THREE.ConeGeometry(.055,.2,6),mat(0xd9c9a2));horn.position.set(x,1.23,.34);root.add(horn)}
+ }else{
+  for(const x of [-.2,.2]){const ear=new THREE.Mesh(new THREE.BoxGeometry(.1,.22,.12),mat(0xe2b8ae));ear.position.set(x,1.02,.34);root.add(ear)}
+ }
+ wrapper.add(root);wrapper.userData.fallbackModel=root;
+}
 function attachAnimalModel(wrapper,type){
  const template=animalTemplates.get(type);if(!template||wrapper.userData.modelAttached)return;
+ if(wrapper.userData.fallbackModel){wrapper.remove(wrapper.userData.fallbackModel);wrapper.userData.fallbackModel=null;}
  const model=cloneSkeleton(template.scene);
  model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
  const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3());
@@ -129,13 +155,14 @@ function makeAnimal(type,x,z){
  const group=new THREE.Group();
  group.position.set(x,heightAt(Math.floor(x),Math.floor(z))+.02,z);
  group.userData={type,phase:hash(Math.floor(x*13),Math.floor(z*17))*Math.PI*2,speed:type==='cow'?.8:type==='sheep'?.65:.75,turn:0,modelAttached:false,mixer:null};
- scene.add(group);animalList.push(group);attachAnimalModel(group,type);return group;
+ scene.add(group);animalList.push(group);attachFallbackAnimal(group,type);attachAnimalModel(group,type);return group;
 }
 function loadAnimalsAround(px,pz){
  for(let cx=px-RADIUS;cx<=px+RADIUS;cx++)for(let cz=pz-RADIUS;cz<=pz+RADIUS;cz++){
   const ck=chunkKey(cx,cz);if(animalChunks.has(ck))continue;
   const animals=[],plants=[],r=hash(cx+902,cz-411);
-  if(r>.72){const count=1;for(let n=0;n<count;n++){const x=cx*CHUNK+3+Math.floor(hash(cx*7+n,cz*11)*10),z=cz*CHUNK+3+Math.floor(hash(cx*13,cz*5+n)*10);const type=['pig','cow','sheep'][Math.floor(hash(cx+n*3,cz-n*7)*3)];animals.push(makeAnimal(type,x,z))}}
+  if(cx===0&&cz===0){const starters=[['pig',5,5],['cow',10,6],['sheep',7,12]];for(const [type,x,z] of starters)animals.push(makeAnimal(type,x,z));}
+  else if(r>.58){const x=cx*CHUNK+3+Math.floor(hash(cx*7,cz*11)*10),z=cz*CHUNK+3+Math.floor(hash(cx*13,cz*5)*10);const type=['pig','cow','sheep'][Math.floor(hash(cx,cz)*3)];animals.push(makeAnimal(type,x,z));}
   for(let n=0;n<4;n++){const x=cx*CHUNK+hash(cx*31+n,cz*17)*CHUNK,z=cz*CHUNK+hash(cx*19,cz*29+n)*CHUNK;if(hash(Math.floor(x*3),Math.floor(z*3))<.78||heightAt(Math.floor(x),Math.floor(z))<=2)continue;const plant=new THREE.Group();plant.position.set(x,heightAt(Math.floor(x),Math.floor(z))+.03,z);const stem=new THREE.Mesh(new THREE.CylinderGeometry(.025,.035,.32,5),new THREE.MeshLambertMaterial({color:0x43843b}));stem.position.y=.16;plant.add(stem);const flower=new THREE.Mesh(new THREE.DodecahedronGeometry(.13,0),new THREE.MeshLambertMaterial({color:hash(Math.floor(x*9),Math.floor(z*9))>.5?0xf4d45e:0xf0b6d0}));flower.position.y=.34;plant.add(flower);scene.add(plant);plants.push(plant)}
   animalChunks.set(ck,animals);plantChunks.set(ck,plants)
  }
