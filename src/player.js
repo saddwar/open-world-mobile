@@ -3,7 +3,7 @@ import * as THREE from 'three';
 const material=(color,roughness=.8)=>new THREE.MeshStandardMaterial({color,roughness});
 export class Player {
   constructor(scene){
-    this.position=new THREE.Vector3(0,0,0);this.velocityY=0;this.speed=0;this.walkTime=0;
+    this.position=new THREE.Vector3(0,0,0);this.velocityY=0;this.speed=0;this.walkTime=0;this.inVehicle=false;
     this.mesh=new THREE.Group();
     const shirt=material(0x253f50),pants=material(0x202b35),skin=material(0xc99572),shoe=material(0x111820);
     const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.34,.62,5,10),shirt);torso.position.y=1.13;torso.castShadow=true;this.mesh.add(torso);
