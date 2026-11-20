@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 const root=document.querySelector('#game');
 const $=id=>document.getElementById(id);
@@ -97,8 +99,7 @@ const animalAssets={
  sheep:'https://tevy.dev/models/sheep/v1/lod0.glb'
 };
 const animalTemplates=new Map();
-const animalLoader=new (await import('three/addons/loaders/GLTFLoader.js')).GLTFLoader();
-const animalSkeletonUtils=await import('three/addons/utils/SkeletonUtils.js');
+const animalLoader=new GLTFLoader();
 const animalLoadPromises=Object.entries(animalAssets).map(async([type,url])=>{
  try{
   const gltf=await animalLoader.loadAsync(url);
@@ -108,7 +109,7 @@ const animalLoadPromises=Object.entries(animalAssets).map(async([type,url])=>{
 });
 function attachAnimalModel(wrapper,type){
  const template=animalTemplates.get(type);if(!template||wrapper.userData.modelAttached)return;
- const model=animalSkeletonUtils.clone(template.scene);
+ const model=cloneSkeleton(template.scene);
  model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
  const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3());
  const targetHeight=type==='cow'?1.45:type==='sheep'?1.0:0.9;
