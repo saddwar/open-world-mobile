@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#78b9df"><title>Blocklands — Voxel Sandbox</title><link rel="stylesheet" href="./style.css"></head>
 <body><div id="game"></div><div id="loading">BLOCKLANDS <small>Генерируем новый мир…</small></div>
+<section id="main-menu" class="screen"><div class="menu-card"><div class="big-logo">BLOCK<span>LANDS</span></div><p>ТВОЙ МИР — ТВОИ ПРАВИЛА</p><button id="start-survival" class="primary">▶ ИГРАТЬ · ВЫЖИВАНИЕ</button><button id="start-creative">✦ ИГРАТЬ · ТВОРЧЕСТВО</button><button id="open-settings">⚙ НАСТРОЙКИ</button><small>Огромный процедурный мир · Строй и исследуй</small></div></section>
+<section id="pause-menu" class="screen hidden"><div class="menu-card"><h2>ПАУЗА</h2><button id="resume-game" class="primary">▶ ПРОДОЛЖИТЬ</button><button id="pause-settings">⚙ НАСТРОЙКИ</button><button id="back-menu">⌂ ГЛАВНОЕ МЕНЮ</button></div></section>
+<section id="settings-panel" class="screen hidden"><div class="menu-card settings-card"><div class="settings-title"><h2>НАСТРОЙКИ</h2><button id="close-settings">✕</button></div><label>Поле зрения <output id="fov-value">78°</output><input id="fov-setting" type="range" min="60" max="100" value="78"></label><label>Чувствительность камеры <output id="sens-value">0.004</output><input id="sens-setting" type="range" min="1" max="10" value="4"></label><label>Дальность прорисовки <output id="distance-value">3 чанка</output><input id="distance-setting" type="range" min="2" max="5" value="3"></label><label>Качество графики<select id="quality-setting"><option value="low">Низкое · плавнее</option><option value="medium" selected>Среднее</option><option value="high">Высокое</option></select></label><label class="check-row"><span>Показывать FPS</span><input id="fps-setting" type="checkbox"></label><p class="settings-hint">Изменения применяются сразу.</p></div></section>
 <header class="hud"><div class="logo">BLOCK<span>LANDS</span></div><div class="mode"><button id="survival" class="selected">ВЫЖИВАНИЕ</button><button id="creative">ТВОРЧЕСТВО</button></div><div id="stats">❤ ♥ ♥ ♥ ♥　☀ День 1</div><button id="bag" class="bag">🎒</button></header>
 <div id="crosshair">＋</div><div id="target">Исследуй мир · добывай · строй</div>
 <div id="hotbar" aria-label="Панель быстрого доступа"></div>
@@ -8,4 +11,4 @@
 <div id="actions"><button id="jump">⬆</button><button id="break">⛏</button><button id="place">▣</button></div>
 <div id="look-note">Свайп справа — обзор</div>
 <section id="inventory" aria-label="Инвентарь"><div class="inventory-head"><div><b>ИНВЕНТАРЬ</b><small>Предметы и блоки</small></div><button id="close-inventory">✕</button></div><div id="inventory-grid"></div><p>Нажми на предмет, чтобы выбрать его.</p></section>
-<div id="toast"></div><script type="module" src="./src/main.js"></script></body></html>
+<button id="pause-button" class="pause-button">Ⅱ</button><div id="fps-counter"></div><div id="toast"></div><script type="module" src="./src/main.js"></script></body></html>
