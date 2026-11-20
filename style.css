@@ -6,3 +6,55 @@ body:not(.game-active) .hud,body:not(.game-active) #crosshair,body:not(.game-act
 @media(max-width:500px){.menu-card{padding:21px 17px}.settings-card{gap:12px}}
 
 #mine-progress{position:fixed;left:50%;top:calc(50% + 25px);transform:translateX(-50%);width:118px;height:7px;border:1px solid #fff;border-radius:8px;background:#17251e99;overflow:hidden;opacity:0;pointer-events:none;transition:opacity .12s}#mine-progress.active{opacity:1}#mine-fill{height:100%;width:0;background:linear-gradient(90deg,#e6b94f,#ffe58b);transition:width .04s linear}
+/* Responsive HUD and touch controls: keep every control inside the safe viewport. */
+:root{--safe-bottom:env(safe-area-inset-bottom,0px);--safe-top:env(safe-area-inset-top,0px)}
+#hotbar{max-width:min(96vw,760px);min-width:0;scrollbar-width:none;overscroll-behavior-x:contain;z-index:3}
+#hotbar::-webkit-scrollbar{display:none}
+#hotbar button{flex:0 0 42px}
+.hud{z-index:4;min-width:0}
+.logo{flex:0 0 auto;white-space:nowrap}
+.mode{flex:0 1 auto;min-width:0}
+.mode button{white-space:nowrap}
+#stats{min-width:0;overflow:hidden;text-overflow:ellipsis}
+#left-stick,#actions{z-index:3}
+#inventory{z-index:30;overscroll-behavior:contain}
+#pause-button{z-index:6}
+@media(max-width:600px){
+ .hud{left:8px;right:8px;gap:5px}
+ .logo{font-size:12px;letter-spacing:.4px}
+ .mode{gap:2px}
+ .mode button{font-size:7px;padding:7px 5px;border-radius:8px}
+ #stats{font-size:8px;max-width:27vw}
+ .bag{font-size:15px;padding:6px}
+ #target{top:calc(55px + var(--safe-top));max-width:82vw;overflow:hidden;text-overflow:ellipsis}
+ #hotbar{bottom:calc(8px + var(--safe-bottom));gap:3px;padding:4px;max-width:96vw}
+ #hotbar button{flex-basis:38px;width:38px;height:43px;font-size:18px}
+ #left-stick{left:12px;bottom:calc(67px + var(--safe-bottom));width:94px;height:94px}
+ #stick-knob{width:42px;height:42px}
+ #actions{right:12px;bottom:calc(67px + var(--safe-bottom));grid-template-columns:repeat(2,48px);gap:6px}
+ #actions button{height:47px;padding:6px;font-size:18px}
+ #look-note{right:9px;top:43%;font-size:8px}
+ .pause-button{top:calc(58px + var(--safe-top));right:8px;width:34px;height:32px}
+ #fps-counter{top:calc(94px + var(--safe-top));right:9px}
+ #inventory{width:min(94vw,430px);max-height:calc(84dvh - var(--safe-top) - var(--safe-bottom));padding:12px}
+ #inventory-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+ .inv-slot{min-height:70px}
+ .item-model{font-size:22px}
+}
+@media(max-width:370px){
+ .hud{gap:3px}
+ .logo{font-size:10px}
+ .mode button{font-size:6px;padding:6px 3px}
+ #stats{font-size:7px;max-width:22vw}
+ #hotbar button{flex-basis:35px;width:35px}
+}
+@media(orientation:landscape) and (max-height:500px){
+ .hud{top:calc(5px + var(--safe-top))}
+ #left-stick{left:12px;bottom:calc(8px + var(--safe-bottom));width:82px;height:82px}
+ #actions{right:12px;bottom:calc(8px + var(--safe-bottom));grid-template-columns:repeat(2,46px);gap:5px}
+ #actions button{height:43px}
+ #hotbar{bottom:calc(5px + var(--safe-bottom));max-width:58vw}
+ #hotbar button{height:38px}
+ #target{top:calc(44px + var(--safe-top))}
+ #look-note{display:none}
+}
