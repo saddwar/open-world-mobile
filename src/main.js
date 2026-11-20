@@ -34,6 +34,8 @@ const world = new World(scene);
 const player = new Player(scene);
 const controls = new MobileControls();
 const hud = new HUD(world);
+const actionButton=document.getElementById('action');
+actionButton.addEventListener('click',()=>{const message=world.interact(player);if(message)hud.showMessage(message,2600);});
 camera.position.set(0, 5, 9);
 
 let last = performance.now();
@@ -44,15 +46,19 @@ function frame(now) {
   last = now; elapsed += dt;
   if(!hud.paused){
     controls.update(dt);
-    player.update(dt, controls, world, elapsed);
+    if(player.inVehicle){world.driveVehicle(dt,controls);player.position.copy(world.vehicle.mesh.position);}
+    else player.update(dt, controls, world, elapsed);
     world.update(dt, elapsed, player.position);
   }
-  const target = player.position.clone().add(new THREE.Vector3(0, 1.35, 0));
-  const distance = controls.zoom;
+  const target = player.position.clone().add(new THREE.Vector3(0, player.inVehicle?1.0:1.35, 0));
+  const distance = player.inVehicle?10:controls.zoom;
   const offset = new THREE.Vector3(Math.sin(controls.yaw) * distance, 3.4, Math.cos(controls.yaw) * distance);
   camera.position.lerp(target.clone().add(offset), 1 - Math.exp(-8 * dt));
   camera.lookAt(target);
   hud.update(player.position, elapsed);
+  const interaction=world.interactionAt(player.position,player.inVehicle);
+  actionButton.classList.toggle('hidden',!interaction);
+  actionButton.textContent=interaction==='enter'?'СЕСТЬ В МАШИНУ':interaction==='exit'?'ВЫЙТИ ИЗ МАШИНЫ':interaction==='mission'?'ВЗЯТЬ ЗАДАНИЕ':'';
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
