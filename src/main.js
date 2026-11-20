@@ -1,82 +1,32 @@
 import * as THREE from 'three';
-import { World } from './world.js';
-import { Player } from './player.js';
-import { MobileControls } from './controls.js';
-import { HUD } from './ui.js';
-
-const root = document.getElementById('game-root');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x9ebfca);
-scene.fog = new THREE.Fog(0x9ebfca, 95, 310);
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 500);
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', stencil: false });
-renderer.domElement.className = 'webgl';
-renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.shadowMap.autoUpdate = true;
-renderer.toneMappingExposure = 1.12;
-renderer.info.autoReset = true;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
-root.appendChild(renderer.domElement);
-
-scene.add(new THREE.HemisphereLight(0xe4f3ff, 0x53634c, 2.0));
-const fill = new THREE.DirectionalLight(0xb9d8ff, 0.55);
-fill.position.set(55, 28, -65);
-scene.add(fill);
-const sun = new THREE.DirectionalLight(0xffedcf, 2.4);
-sun.position.set(-65, 95, 45);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -90; sun.shadow.camera.right = 90;
-sun.shadow.camera.top = 90; sun.shadow.camera.bottom = -90;
-sun.shadow.normalBias = 0.035;
-scene.add(sun);
-
-const world = new World(scene);
-const player = new Player(scene);
-const controls = new MobileControls();
-const hud = new HUD(world);
-const actionButton=document.getElementById('action');
-actionButton.addEventListener('click',()=>{const message=world.interact(player);if(message)hud.showMessage(message,2600);});
-camera.position.set(0, 5, 9);
-
-let last = performance.now();
-let elapsed = 0;
-function frame(now) {
-  requestAnimationFrame(frame);
-  const dt = Math.min((now - last) / 1000, 0.033);
-  last = now; elapsed += dt;
-  if(!hud.paused){
-    controls.update(dt);
-    if(player.inVehicle){world.driveVehicle(dt,controls);player.position.copy(world.vehicle.mesh.position);}
-    else player.update(dt, controls, world, elapsed);
-    world.update(dt, elapsed, player.position);
-  }
-  const target = player.position.clone().add(new THREE.Vector3(0, player.inVehicle?1.0:1.35, 0));
-  const distance = player.inVehicle?10:controls.zoom;
-  const offset = new THREE.Vector3(Math.sin(controls.yaw) * distance, 3.4, Math.cos(controls.yaw) * distance);
-  camera.position.lerp(target.clone().add(offset), 1 - Math.exp(-8 * dt));
-  camera.lookAt(target);
-  hud.update(player.position, elapsed);
-  const interaction=world.interactionAt(player.position,player.inVehicle);
-  actionButton.classList.toggle('hidden',!interaction);
-  actionButton.textContent=interaction==='enter'?'СЕСТЬ В МАШИНУ':interaction==='exit'?'ВЫЙТИ ИЗ МАШИНЫ':interaction==='mission'?'ВЗЯТЬ ЗАДАНИЕ':'';
-  renderer.render(scene, camera);
-}
-requestAnimationFrame(frame);
-
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.6));
-});
-addEventListener('contextmenu', e => e.preventDefault());
-document.getElementById('loading').remove();
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
-}
+const root=document.querySelector('#game');
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x8bc8ed);scene.fog=new THREE.Fog(0x8bc8ed,28,78);
+const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,120);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;root.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xe7f7ff,0x64764a,2));const sun=new THREE.DirectionalLight(0xfff2d4,2.2);sun.position.set(-25,40,20);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-35;sun.shadow.camera.right=35;sun.shadow.camera.top=35;sun.shadow.camera.bottom=-35;scene.add(sun);
+const defs=[['grass',0x69a94c,'🟩'],['dirt',0x896044,'🟫'],['stone',0x858b91,'⬜'],['wood',0x80502e,'🪵'],['leaves',0x347d3e,'🌿'],['sand',0xd9c27d,'🟨'],['brick',0x9d5544,'🧱'],['glass',0x9bd9e8,'🔹']];
+const mats=Object.fromEntries(defs.map(([k,c])=>[k,new THREE.MeshLambertMaterial({color:c})]));
+const blocks=new Map(),meshes=new Map(),cube=new THREE.BoxGeometry(1,1,1);let selected='grass',mode='survival',day=1,health=5;
+const key=(x,y,z)=>x+','+y+','+z;
+function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k))return false;blocks.set(k,type);const m=new THREE.Mesh(cube,mats[type]||mats.grass);m.position.set(x+.5,y+.5,z+.5);m.castShadow=true;m.receiveShadow=true;scene.add(m);meshes.set(k,m);return true}
+function removeBlock(x,y,z){const k=key(x,y,z),m=meshes.get(k);if(!m)return false;scene.remove(m);mats[blocks.get(k)].dispose===undefined;blocks.delete(k);meshes.delete(k);return true}
+function heightAt(x,z){return Math.floor(2+Math.sin(x*.22)*1.1+Math.cos(z*.19)*1.2+Math.sin((x+z)*.12)*.7)}
+for(let x=-22;x<=22;x++)for(let z=-22;z<=22;z++){const h=heightAt(x,z);for(let y=-2;y<=h;y++)addBlock(x,y,z,y===h?(h<1?'sand':'grass'):y>h-3?'dirt':'stone');if((Math.abs(x*13+z*7)%97===0)&&h>1){for(let y=1;y<=4;y++)addBlock(x,h+y,z,'wood');for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++)for(let dy=3;dy<=6;dy++)if(Math.abs(dx)+Math.abs(dz)+Math.abs(dy-4)<=5&&!(dx===0&&dz===0&&dy<5))addBlock(x+dx,h+dy,z+dz,'leaves')}}
+for(let i=0;i<10;i++){const x=Math.floor(Math.sin(i*8)*16),z=Math.floor(Math.cos(i*5)*16),h=heightAt(x,z);for(let y=1;y<=3;y++)addBlock(x,h+y,z,'wood');for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)for(let dy=2;dy<=4;dy++)if(Math.abs(dx)+Math.abs(dz)<3)addBlock(x+dx,h+dy,z+dz,'leaves')}
+const avatar=new THREE.Group();const body=new THREE.Mesh(new THREE.BoxGeometry(.65,1,.35),new THREE.MeshLambertMaterial({color:0x2878bd}));body.position.y=.9;avatar.add(body);const head=new THREE.Mesh(new THREE.BoxGeometry(.55,.55,.55),new THREE.MeshLambertMaterial({color:0xd8a477}));head.position.y=1.68;avatar.add(head);const legs=new THREE.Mesh(new THREE.BoxGeometry(.58,.65,.32),new THREE.MeshLambertMaterial({color:0x34445d}));legs.position.y=.28;avatar.add(legs);avatar.position.set(0,heightAt(0,4)+1,4);scene.add(avatar);
+const ray=new THREE.Raycaster();ray.far=6;const center=new THREE.Vector2(0,0);let yaw=0,pitch=-.18,velY=0,onGround=false,move={x:0,y:0},lookPointer=null,lastX=0,lastY=0;
+function eye(){camera.position.set(avatar.position.x,avatar.position.y+1.55,avatar.position.z);camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch}
+function targetBlock(){eye();ray.setFromCamera(center,camera);const hits=ray.intersectObjects([...meshes.values()],false);return hits[0]||null}
+function action(place){const hit=targetBlock();if(!hit)return;const p=hit.object.position.clone().add(place?hit.face.normal.clone().multiplyScalar(.51):new THREE.Vector3());const x=Math.floor(p.x),y=Math.floor(p.y),z=Math.floor(p.z);if(place){if(Math.abs(x-avatar.position.x)<1&&Math.abs(z-avatar.position.z)<1&&y<=avatar.position.y+2)return toast('Нельзя поставить блок в себе');if(addBlock(x,y,z,selected)){if(mode==='survival')inventory[selected]=Math.max(0,(inventory[selected]||0)-1);updateBar()}}else{const q=hit.object.position;const bx=Math.floor(q.x),by=Math.floor(q.y),bz=Math.floor(q.z);if(by<=-2)return;if(removeBlock(bx,by,bz)&&mode==='survival'){inventory[blocks.get(key(bx,by,bz))||selected]=(inventory[selected]||0)+1;updateBar()}}}
+const inventory={grass:32,dirt:24,stone:20,wood:16,leaves:12,sand:16,brick:12,glass:8};
+const bar=document.querySelector('#hotbar');function updateBar(){bar.innerHTML='';for(const [id,,icon] of defs){const b=document.createElement('button');b.className=id===selected?'active':'';b.innerHTML=icon+'<small>'+(mode==='creative'?'∞':inventory[id]||0)+'</small>';b.addEventListener('click',()=>{selected=id;updateBar()});bar.append(b)}}
+updateBar();
+function toast(t){const el=document.querySelector('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),1600)}
+document.querySelector('#survival').onclick=()=>setMode('survival');document.querySelector('#creative').onclick=()=>setMode('creative');function setMode(m){mode=m;document.querySelector('#survival').classList.toggle('selected',m==='survival');document.querySelector('#creative').classList.toggle('selected',m==='creative');updateBar();toast(m==='survival'?'Режим выживания':'Творческий режим: блоки бесконечны')}
+document.querySelector('#break').onclick=()=>action(false);document.querySelector('#place').onclick=()=>action(true);
+function jump(){if(onGround){velY=7.5;onGround=false}}document.querySelector('#jump').addEventListener('pointerdown',e=>{e.preventDefault();jump()});
+const zone=document.querySelector('#left-stick'),knob=document.querySelector('#stick-knob');let stickId=null;zone.addEventListener('pointerdown',e=>{stickId=e.pointerId;zone.setPointerCapture(stickId);stick(e)});zone.addEventListener('pointermove',e=>{if(e.pointerId===stickId)stick(e)});function stick(e){const r=zone.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),len=Math.hypot(dx,dy),s=Math.min(1,48/(len||1));move={x:dx*s/48,y:dy*s/48};knob.style.transform='translate('+move.x*34+'px,'+move.y*34+'px)'}function resetStick(){stickId=null;move={x:0,y:0};knob.style.transform=''}zone.addEventListener('pointerup',resetStick);zone.addEventListener('pointercancel',resetStick);
+renderer.domElement.addEventListener('pointerdown',e=>{if(e.clientX<innerWidth*.42||e.target!==renderer.domElement)return;lookPointer=e.pointerId;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(lookPointer)});renderer.domElement.addEventListener('pointermove',e=>{if(e.pointerId!==lookPointer)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;yaw-=dx*.004;pitch=Math.max(-1.35,Math.min(1.25,pitch-dy*.004))});renderer.domElement.addEventListener('pointerup',()=>lookPointer=null);renderer.domElement.addEventListener('pointercancel',()=>lookPointer=null);
+addEventListener('keydown',e=>{if(e.code==='Space')jump();if(e.code==='KeyW')move.y=-1;if(e.code==='KeyS')move.y=1;if(e.code==='KeyA')move.x=-1;if(e.code==='KeyD')move.x=1;if(e.code==='KeyF')action(false);if(e.code==='KeyE')action(true)});addEventListener('keyup',e=>{if(['KeyW','KeyS'].includes(e.code))move.y=0;if(['KeyA','KeyD'].includes(e.code))move.x=0});
+const clock=new THREE.Clock();let elapsed=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));const dir=forward.multiplyScalar(-move.y).add(right.multiplyScalar(move.x));if(dir.lengthSq()>0){dir.normalize();const speed=mode==='creative'?8:5;avatar.position.addScaledVector(dir,speed*dt);avatar.rotation.y=Math.atan2(dir.x,dir.z)}if(mode==='creative'&&move.y<-.1){avatar.position.y+=dt*3}else{velY-=19*dt;avatar.position.y+=velY*dt;const ground=heightAt(Math.round(avatar.position.x),Math.round(avatar.position.z))+1;if(avatar.position.y<=ground){avatar.position.y=ground;velY=0;onGround=true}}eye();sun.position.set(-25+Math.sin(elapsed*.025)*10,40,20);sun.intensity=1.7+Math.sin(elapsed*.025)*.35;renderer.render(scene,camera);if(Math.floor(elapsed/75)+1>day){day++;document.querySelector('#stats').textContent='❤ '+ '♥ '.repeat(health)+'　☀ День '+day}}
+loop();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5))});document.querySelector('#loading').remove();
