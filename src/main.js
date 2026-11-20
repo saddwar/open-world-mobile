@@ -64,9 +64,9 @@ const key=(x,y,z)=>x+','+y+','+z,CHUNK=16,loadedChunks=new Set();let RADIUS=3;
 function chunkKey(x,z){return x+','+z}
 function hash(x,z){let n=(Math.imul(x,374761393)+Math.imul(z,668265263))|0;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967295}
 function heightAt(x,z){return Math.floor(5+Math.sin(x*.045)*3.4+Math.cos(z*.052)*3.1+Math.sin((x+z)*.027)*2.2+Math.cos((x-z)*.021)*1.6)}
-function treeAt(x,z){return hash(x+193,z-71)>.982&&heightAt(x,z)>2}
+function treeAt(x,z){return hash(x+193,z-71)>.974&&heightAt(x,z)>2}
 function generatedBlock(x,y,z){
- const h=heightAt(x,z);if(y<=h){if(y===h)return h<=1?'sand':'grass';if(y>h-3)return 'dirt';if(y>-3&&hash(x+41,z-17)>.986)return 'coal';return 'stone'}
+ const h=heightAt(x,z);if(y<=h){if(y===h)return h<=2?'sand':(h>=12?'stone':'grass');if(y>h-3)return 'dirt';if(y>-3&&hash(x+41,z-17)>.986)return 'coal';return 'stone'}
  for(let tx=x-2;tx<=x+2;tx++)for(let tz=z-2;tz<=z+2;tz++)if(treeAt(tx,tz)){const th=heightAt(tx,tz),dx=x-tx,dz=z-tz;if(dx===0&&dz===0&&y>th&&y<=th+4)return 'wood';if(y>=th+3&&y<=th+6&&Math.abs(dx)+Math.abs(dz)+Math.abs(y-th-4)<=5&&!(dx===0&&dz===0&&y<th+5))return 'leaves'}
  return null;
 }
@@ -84,7 +84,46 @@ function rebuildChunk(cx,cz){
 }
 function solidAt(x,y,z){const k=key(x,y,z);return blocks.has(k)?blocks.get(k)!==null:generatedBlock(x,y,z)!==null}
 function collides(px,py,pz){const r=.29,h=1.75;for(let x=Math.floor(px-r);x<=Math.floor(px+r);x++)for(let z=Math.floor(pz-r);z<=Math.floor(pz+r);z++)for(let y=Math.floor(py+.001);y<=Math.floor(py+h-.001);y++)if(solidAt(x,y,z))return true;return false}
-function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK);for(let x=px-RADIUS;x<=px+RADIUS;x++)for(let z=pz-RADIUS;z<=pz+RADIUS;z++)if(!loadedChunks.has(chunkKey(x,z)))rebuildChunk(x,z);for(const ck of [...loadedChunks]){const [x,z]=ck.split(',').map(Number);if(Math.abs(x-px)>RADIUS+1||Math.abs(z-pz)>RADIUS+1){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck)}}}
+const animalChunks=new Map(), plantChunks=new Map(), animalList=[];
+const animalMats={
+ pig:new THREE.MeshLambertMaterial({color:0xe99a9a}),
+ cow:new THREE.MeshLambertMaterial({color:0xf0eee2}),
+ sheep:new THREE.MeshLambertMaterial({color:0xd9d7cb}),
+ dark:new THREE.MeshLambertMaterial({color:0x39332e}),
+ hoof:new THREE.MeshLambertMaterial({color:0x57443a}),
+ pink:new THREE.MeshLambertMaterial({color:0xe87583}),
+ grass:new THREE.MeshLambertMaterial({color:0x4d9b42}),
+ stem:new THREE.MeshLambertMaterial({color:0x43843b}),
+ petal:new THREE.MeshLambertMaterial({color:0xf0b6d0}),
+ yellow:new THREE.MeshLambertMaterial({color:0xf4d45e})
+};
+function boxPart(parent,w,h,d,mat,x,y,z){const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh}
+function makeAnimal(type,x,z){
+ const group=new THREE.Group(),bodyMat=animalMats[type],legMat=type==='cow'?animalMats.dark:animalMats.hoof;
+ boxPart(group,.9,.62,.52,bodyMat,0,.85,0);
+ boxPart(group,.38,.42,.4,bodyMat,0,1.13,-.37);
+ if(type==='cow'){for(const side of [-1,1])boxPart(group,.25,.25,.54,animalMats.dark,side*.22,.9,.02)}
+ if(type==='pig')boxPart(group,.22,.14,.08,animalMats.pink,0,1.13,-.59);
+ if(type==='sheep')boxPart(group,.98,.2,.6,animalMats.cow,0,1.13,.02);
+ for(const lx of [-.27,.27])for(const lz of [-.17,.17])boxPart(group,.16,.42,.16,legMat,lx,.28,lz);
+ const eyeMat=new THREE.MeshLambertMaterial({color:0x202020});
+ boxPart(group,.055,.055,.025,eyeMat,-.11,1.22,-.585);boxPart(group,.055,.055,.025,eyeMat,.11,1.22,-.585);
+ group.position.set(x,heightAt(Math.floor(x),Math.floor(z))+0.02,z);
+ group.userData={type,phase:hash(Math.floor(x*13),Math.floor(z*17))*Math.PI*2,speed:.25+hash(Math.floor(x),Math.floor(z))*0.25,turn:0};
+ scene.add(group);animalList.push(group);return group;
+}
+function loadAnimalsAround(px,pz){
+ for(let cx=px-RADIUS;cx<=px+RADIUS;cx++)for(let cz=pz-RADIUS;cz<=pz+RADIUS;cz++){
+  const ck=chunkKey(cx,cz);if(animalChunks.has(ck))continue;
+  const animals=[],plants=[],r=hash(cx+902,cz-411);
+  if(r>.35){const count=r>.82?2:1;for(let n=0;n<count;n++){const x=cx*CHUNK+3+Math.floor(hash(cx*7+n,cz*11)*10),z=cz*CHUNK+3+Math.floor(hash(cx*13,cz*5+n)*10);const type=['pig','cow','sheep'][Math.floor(hash(cx+n*3,cz-n*7)*3)];animals.push(makeAnimal(type,x,z))}}
+  for(let n=0;n<13;n++){const x=cx*CHUNK+hash(cx*31+n,cz*17)*CHUNK,z=cz*CHUNK+hash(cx*19,cz*29+n)*CHUNK;if(hash(Math.floor(x*3),Math.floor(z*3))<.78||heightAt(Math.floor(x),Math.floor(z))<=2)continue;const plant=new THREE.Group();plant.position.set(x,heightAt(Math.floor(x),Math.floor(z))+.03,z);boxPart(plant,.07,.32,.07,animalMats.stem,0,.16,0);const flowerMat=hash(Math.floor(x*9),Math.floor(z*9))>.5?animalMats.yellow:animalMats.petal;boxPart(plant,.24,.12,.24,flowerMat,0,.34,0);scene.add(plant);plants.push(plant)}
+  animalChunks.set(ck,animals);plantChunks.set(ck,plants);
+ }
+ for(const ck of [...animalChunks.keys()]){const [cx,cz]=ck.split(',').map(Number);if(Math.abs(cx-px)>RADIUS+1||Math.abs(cz-pz)>RADIUS+1){for(const a of animalChunks.get(ck)){scene.remove(a);const i=animalList.indexOf(a);if(i>=0)animalList.splice(i,1)}for(const p of plantChunks.get(ck)||[])scene.remove(p);animalChunks.delete(ck);plantChunks.delete(ck)}}
+}
+function updateAnimals(dt,time){for(const a of animalList){const u=a.userData;u.turn+=dt;if(u.turn>2.5+u.phase%3){u.turn=0;u.phase+=1.7+Math.sin(time+u.phase);u.speed=.15+Math.abs(Math.sin(u.phase))*.35}const nx=a.position.x+Math.sin(u.phase)*u.speed*dt,nz=a.position.z+Math.cos(u.phase)*u.speed*dt;if(hash(Math.floor(nx),Math.floor(nz))>.08){a.position.x=nx;a.position.z=nz;a.position.y=heightAt(Math.floor(nx),Math.floor(nz))+.02;a.rotation.y=Math.atan2(Math.sin(u.phase),Math.cos(u.phase))}a.position.y+=Math.sin(time*3+u.phase)*.008}}
+function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK);for(let x=px-RADIUS;x<=px+RADIUS;x++)for(let z=pz-RADIUS;z<=pz+RADIUS;z++)if(!loadedChunks.has(chunkKey(x,z)))rebuildChunk(x,z);for(const ck of [...loadedChunks]){const [x,z]=ck.split(',').map(Number);if(Math.abs(x-px)>RADIUS+1||Math.abs(z-pz)>RADIUS+1){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck)}}loadAnimalsAround(px,pz)}
 function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k)&&blocks.get(k)!==null)return false;blocks.set(k,type);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return true}
 function removeBlock(x,y,z){const k=key(x,y,z),old=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!old)return null;blocks.set(k,null);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return old}
 // Player camera is truly first-person; only a small arm and held block are visible.
@@ -103,8 +142,13 @@ function updateHeld(){held.material=materials[selected]||materials.grass}
 function toast(t){const el=document.querySelector('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),1600)}
 function renderInventory(){const grid=document.querySelector('#inventory-grid');grid.innerHTML='';for(const [id,label,icon] of defs){const count=inventory[id]||0;const b=document.createElement('button');b.className='inv-slot'+(selected===id?' chosen':'');b.innerHTML='<span class="item-model model-'+id+'">'+icon+'</span><span class="item-name">'+label+'</span><b>'+(mode==='creative'?'∞':count)+'</b>';b.onclick=()=>{selected=id;updateBar();renderInventory();updateHeld()};grid.append(b)}}
 function updateBar(){const bar=document.querySelector('#hotbar');bar.innerHTML='';for(const id of hotbarIds){const d=defs.find(x=>x[0]===id);const b=document.createElement('button');b.className=id===selected?'active':'';b.innerHTML='<span>'+d[2]+'</span><small>'+(mode==='creative'?'∞':inventory[id]||0)+'</small>';b.onclick=()=>{selected=id;updateBar();updateHeld()};bar.append(b)}}
-function action(place){const hit=targetBlock();if(!hit)return;const coord=hit.object.userData.coords?.[hit.instanceId];if(!coord)return;const [bx,by,bz]=coord;if(place){const x=bx+Math.round(hit.face.normal.x),y=by+Math.round(hit.face.normal.y),z=bz+Math.round(hit.face.normal.z);if(mode==='survival'&&!(inventory[selected]>0))return toast('Нет этого блока в инвентаре');if(Math.abs(x-player.x)<.8&&Math.abs(z-player.z)<.8&&y<=player.y+2)return toast('Здесь стоишь ты');if(addBlock(x,y,z,selected)){if(mode==='survival')inventory[selected]--;updateBar();renderInventory()}}else{const x=bx,y=by,z=bz;if(y<=-3)return;const got=removeBlock(x,y,z);if(got&&mode==='survival'){inventory[got]=(inventory[got]||0)+1;updateBar();renderInventory()}}}
-document.querySelector('#break').onclick=()=>action(false);document.querySelector('#place').onclick=()=>action(true);
+function action(place){const hit=targetBlock();if(!hit)return;const coord=hit.object.userData.coords?.[hit.instanceId];if(!coord)return;const [bx,by,bz]=coord;if(place){const x=bx+Math.round(hit.face.normal.x),y=by+Math.round(hit.face.normal.y),z=bz+Math.round(hit.face.normal.z);if(mode==='survival'&&!(inventory[selected]>0))return toast('Нет этого блока в инвентаре');if(Math.abs(x-player.x)<.8&&Math.abs(z-player.z)<.8&&y<=player.y+2)return toast('Здесь стоишь ты');if(addBlock(x,y,z,selected)){if(mode==='survival')inventory[selected]--;updateBar();renderInventory()}}}
+let mining=null;
+function startMining(){if(!gameStarted||paused||mining)return;const hit=targetBlock();if(!hit)return;const coord=hit.object.userData.coords?.[hit.instanceId];if(!coord)return;mining={coord:coord.slice(),elapsed:0,required:mode==='creative'?.12:.72};$('mine-progress').classList.add('active')}
+function stopMining(){mining=null;$('mine-progress').classList.remove('active');$('mine-fill').style.width='0%'}
+function updateMining(dt){if(!mining)return;mining.elapsed+=dt;$('mine-fill').style.width=Math.min(100,mining.elapsed/mining.required*100)+'%';if(mining.elapsed>=mining.required){const [x,y,z]=mining.coord;const got=removeBlock(x,y,z);if(got&&mode==='survival'){inventory[got]=(inventory[got]||0)+1;updateBar();renderInventory()}stopMining()}}
+const breakButton=$('break');breakButton.addEventListener('pointerdown',e=>{e.preventDefault();startMining()});breakButton.addEventListener('pointerup',stopMining);breakButton.addEventListener('pointercancel',stopMining);breakButton.addEventListener('lostpointercapture',stopMining);
+document.querySelector('#place').onclick=()=>action(true);
 document.querySelector('#survival').onclick=()=>setMode('survival');document.querySelector('#creative').onclick=()=>setMode('creative');
 function setMode(m){mode=m;document.querySelector('#survival').classList.toggle('selected',m==='survival');document.querySelector('#creative').classList.toggle('selected',m==='creative');updateBar();renderInventory();toast(m==='survival'?'Выживание':'Творчество')}
 document.querySelector('#bag').onclick=()=>{document.querySelector('#inventory').classList.toggle('open');renderInventory()};
@@ -117,15 +161,15 @@ function resetStick(){stickId=null;move={x:0,y:0};knob.style.transform=''}zone.a
 renderer.domElement.addEventListener('pointerdown',e=>{if(!gameStarted||paused)return;if(e.clientX<innerWidth*.38||e.target!==renderer.domElement)return;lookPointer=e.pointerId;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(lookPointer)});
 renderer.domElement.addEventListener('pointermove',e=>{if(!gameStarted||paused||e.pointerId!==lookPointer)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;yaw-=dx*sensitivity;pitch=Math.max(-1.45,Math.min(1.45,pitch-dy*sensitivity))});
 renderer.domElement.addEventListener('pointerup',()=>lookPointer=null);renderer.domElement.addEventListener('pointercancel',()=>lookPointer=null);
-addEventListener('keydown',e=>{if(e.code==='Escape'){if(document.querySelector('#settings-panel').classList.contains('hidden'))togglePause();else{closeSettings();if(gameStarted&&paused)showScreen('pause-menu')}return}if(!gameStarted||paused)return;if(e.code==='Space')jump();if(e.code==='KeyW')move.y=-1;if(e.code==='KeyS')move.y=1;if(e.code==='KeyA')move.x=-1;if(e.code==='KeyD')move.x=1;if(e.code==='KeyF')action(false);if(e.code==='KeyE')action(true);if(e.code==='KeyI'||e.code==='Tab'){e.preventDefault();document.querySelector('#inventory').classList.toggle('open')}if(/^Digit[1-8]$/.test(e.code)){selected=hotbarIds[Number(e.code.slice(5))-1];updateBar();updateHeld()}});
-addEventListener('keyup',e=>{if(['KeyW','KeyS'].includes(e.code))move.y=0;if(['KeyA','KeyD'].includes(e.code))move.x=0});
+addEventListener('keydown',e=>{if(e.code==='Escape'){if(document.querySelector('#settings-panel').classList.contains('hidden'))togglePause();else{closeSettings();if(gameStarted&&paused)showScreen('pause-menu')}return}if(!gameStarted||paused)return;if(e.code==='Space')jump();if(e.code==='KeyW')move.y=-1;if(e.code==='KeyS')move.y=1;if(e.code==='KeyA')move.x=-1;if(e.code==='KeyD')move.x=1;if(e.code==='KeyF'&&!e.repeat)startMining();if(e.code==='KeyE')action(true);if(e.code==='KeyI'||e.code==='Tab'){e.preventDefault();document.querySelector('#inventory').classList.toggle('open')}if(/^Digit[1-8]$/.test(e.code)){selected=hotbarIds[Number(e.code.slice(5))-1];updateBar();updateHeld()}});
+addEventListener('keyup',e=>{if(['KeyW','KeyS'].includes(e.code))move.y=0;if(['KeyA','KeyD'].includes(e.code))move.x=0;if(e.code==='KeyF')stopMining()});
 updateBar();renderInventory();updateHeld();
 
 const $=id=>document.getElementById(id);
 function hideScreen(id){$(id).classList.add('hidden')}
 function showScreen(id){$(id).classList.remove('hidden')}
 function startGame(chosenMode){mode=chosenMode;setMode(chosenMode);gameStarted=true;paused=false;document.body.classList.add('game-active');hideScreen('main-menu');hideScreen('pause-menu');hideScreen('settings-panel');toast(chosenMode==='survival'?'Выживание':'Творчество')}
-function togglePause(){if(!gameStarted)return;paused=!paused;if(paused){move={x:0,y:0};hideScreen('settings-panel');showScreen('pause-menu')}else hideScreen('pause-menu')}
+function togglePause(){if(!gameStarted)return;stopMining();paused=!paused;if(paused){move={x:0,y:0};hideScreen('settings-panel');showScreen('pause-menu')}else hideScreen('pause-menu')}
 function openSettings(){showScreen('settings-panel')}
 function closeSettings(){hideScreen('settings-panel')}
 $('start-survival').onclick=()=>startGame('survival');$('start-creative').onclick=()=>startGame('creative');
@@ -141,6 +185,6 @@ $('quality-setting').onchange=e=>{const q=quality[e.target.value];renderer.setPi
 $('fps-setting').onchange=e=>{showFps=e.target.checked;if(!showFps)$('fps-counter').textContent=''};
 
 const clock=new THREE.Clock();let elapsed=0;
-function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;fpsFrames++;fpsTime+=dt;if(fpsTime>=.5){document.querySelector('#fps-counter').textContent=showFps?Math.round(fpsFrames/fpsTime)+' FPS':'';fpsFrames=0;fpsTime=0}const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));const dir=forward.multiplyScalar(gameStarted&&!paused?-move.y:0).add(right.multiplyScalar(gameStarted&&!paused?move.x:0));if(dir.lengthSq()>0){dir.normalize();const speed=mode==='creative'?8:5;const nx=player.x+dir.x*speed*dt,nz=player.z+dir.z*speed*dt;if(mode==='creative'){player.x=nx;player.z=nz}else{if(!collides(nx,player.y,player.z))player.x=nx;if(!collides(player.x,player.y,nz))player.z=nz}}if(gameStarted&&!paused&&mode==='creative'&&move.y<-.1)player.y+=dt*3;else if(gameStarted&&!paused){velY-=19*dt;const nextY=player.y+velY*dt;if(velY<=0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else if(velY>0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else{if(velY<0){player.y=Math.floor(nextY)+1;onGround=true}else{player.y=Math.ceil(nextY)-1.75;onGround=false}velY=0}}eye();loadAround();sun.position.x=-25+Math.sin(elapsed*.025)*10;sun.intensity=1.8+Math.sin(elapsed*.025)*.25;if(Math.floor(elapsed/75)+1>day){day++;document.querySelector('#stats').textContent='❤ ♥ ♥ ♥ ♥　☀ День '+day}renderer.render(scene,camera)}
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;updateMining(dt);updateAnimals(dt,elapsed);fpsFrames++;fpsTime+=dt;if(fpsTime>=.5){document.querySelector('#fps-counter').textContent=showFps?Math.round(fpsFrames/fpsTime)+' FPS':'';fpsFrames=0;fpsTime=0}const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));const dir=forward.multiplyScalar(gameStarted&&!paused?-move.y:0).add(right.multiplyScalar(gameStarted&&!paused?move.x:0));if(dir.lengthSq()>0){dir.normalize();const speed=mode==='creative'?8:5;const nx=player.x+dir.x*speed*dt,nz=player.z+dir.z*speed*dt;if(mode==='creative'){player.x=nx;player.z=nz}else{if(!collides(nx,player.y,player.z))player.x=nx;if(!collides(player.x,player.y,nz))player.z=nz}}if(gameStarted&&!paused&&mode==='creative'&&move.y<-.1)player.y+=dt*3;else if(gameStarted&&!paused){velY-=19*dt;const nextY=player.y+velY*dt;if(velY<=0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else if(velY>0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else{if(velY<0){player.y=Math.floor(nextY)+1;onGround=true}else{player.y=Math.ceil(nextY)-1.75;onGround=false}velY=0}}eye();loadAround();sun.position.x=-25+Math.sin(elapsed*.025)*10;sun.intensity=1.8+Math.sin(elapsed*.025)*.25;if(Math.floor(elapsed/75)+1>day){day++;document.querySelector('#stats').textContent='❤ ♥ ♥ ♥ ♥　☀ День '+day}renderer.render(scene,camera)}
 loop();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5))});
 document.querySelector('#loading').remove();
