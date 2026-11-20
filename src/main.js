@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
+import { TerrainGenerator, BIOMES } from '../world/TerrainGenerator.js';
 
 const root=document.querySelector('#game');
 const $=id=>document.getElementById(id);
@@ -19,7 +20,7 @@ const defs=[
  ['grass','Трава','🟩',0x6aa84f],['dirt','Земля','🟫',0x936345],['stone','Камень','🪨',0x92999d],
  ['wood','Дерево','🪵',0x93633a],['leaves','Листва','🌿',0x398447],['sand','Песок','🏖️',0xdcc783],
  ['brick','Кирпич','🧱',0xa95745],['glass','Стекло','🔷',0x9bd9e8],['planks','Доски','🪚',0xb98750],
- ['coal','Уголь','⚫',0x42474c],['flower','Цветок','🌼',0xe7b7d0]
+ ['coal','Уголь','⚫',0x42474c],['flower','Цветок','🌼',0xe7b7d0],['iron','Железная руда','⛏️',0xb58f79],['gold','Золотая руда','🟨',0xe2b83f],['diamond','Алмазная руда','💎',0x55cbd2],['snow','Снег','❄️',0xeaf4fa]
 ];
 const names=Object.fromEntries(defs.map(d=>[d[0],d[1]]));
 function texture(type,base){
@@ -37,7 +38,8 @@ function texture(type,base){
   glass:['#79b9c8','#a5dce5','#d5f4f5','#4d98ad','#e9ffff'],
   planks:['#9b6838','#b27c45','#c99558','#80552f','#d9a96a'],
   coal:['#353a3d','#484e50','#5a6061','#252a2d','#717777'],
-  flower:['#4b843a','#68a94b','#e9a7c9','#f6d7e8','#fff0a5']
+  flower:['#4b843a','#68a94b','#e9a7c9','#f6d7e8','#fff0a5'],
+  iron:['#777d80','#b58f79','#d2b5a2','#656b6e','#e0c4b0'],gold:['#777d80','#e2b83f','#f5d66b','#656b6e','#ffe99a'],diamond:['#777d80','#55cbd2','#91f1ed','#656b6e','#c2ffff'],snow:['#dce8ed','#edf6fa','#ffffff','#b7cbd5','#f8ffff']
  };
  const p=palettes[type]||palettes.grass;
  g.fillStyle=p[0];g.fillRect(0,0,16,16);
@@ -66,17 +68,18 @@ const cube=new THREE.BoxGeometry(1,1,1),blocks=new Map(),chunkMeshes=new Map();
 const key=(x,y,z)=>x+','+y+','+z,CHUNK=16,loadedChunks=new Set();let RADIUS=3;
 function chunkKey(x,z){return x+','+z}
 function hash(x,z){let n=(Math.imul(x,374761393)+Math.imul(z,668265263))|0;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967295}
-function heightAt(x,z){return Math.floor(5+Math.sin(x*.045)*3.4+Math.cos(z*.052)*3.1+Math.sin((x+z)*.027)*2.2+Math.cos((x-z)*.021)*1.6)}
+const terrain=new TerrainGenerator(20261120);
+function heightAt(x,z){return terrain.heightAt(x,z)}
 function treeAt(x,z){return hash(x+193,z-71)>.974&&heightAt(x,z)>2}
 function generatedBlock(x,y,z){
- const h=heightAt(x,z);if(y<=h){if(y===h)return h<=2?'sand':(h>=12?'stone':'grass');if(y>h-3)return 'dirt';if(y>-3&&hash(x+41,z-17)>.986)return 'coal';return 'stone'}
+ const h=heightAt(x,z);if(y<=h){const block=terrain.blockAt(x,y,z);if(block)return block;return null}
  for(let tx=x-2;tx<=x+2;tx++)for(let tz=z-2;tz<=z+2;tz++)if(treeAt(tx,tz)){const th=heightAt(tx,tz),dx=x-tx,dz=z-tz;if(dx===0&&dz===0&&y>th&&y<=th+4)return 'wood';if(y>=th+3&&y<=th+6&&Math.abs(dx)+Math.abs(dz)+Math.abs(y-th-4)<=5&&!(dx===0&&dz===0&&y<th+5))return 'leaves'}
  return null;
 }
 function rebuildChunk(cx,cz){
  const ck=chunkKey(cx,cz);for(const m of chunkMeshes.get(ck)||[])scene.remove(m);
  const buckets={},minX=cx*CHUNK,minZ=cz*CHUNK;
- for(let x=minX;x<minX+CHUNK;x++)for(let z=minZ;z<minZ+CHUNK;z++)for(let y=-3;y<=heightAt(x,z)+6;y++){
+ for(let x=minX;x<minX+CHUNK;x++)for(let z=minZ;z<minZ+CHUNK;z++)for(let y=-24;y<=heightAt(x,z)+6;y++){
   const k=key(x,y,z),type=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!type)continue;
   let exposed=false;for(const [dx,dy,dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){const nk=key(x+dx,y+dy,z+dz),neighbor=blocks.has(nk)?blocks.get(nk):generatedBlock(x+dx,y+dy,z+dz);if(!neighbor||neighbor==='glass'||type==='glass'){exposed=true;break}}
   if(exposed)(buckets[type]??=[]).push([x,y,z]);
@@ -184,7 +187,7 @@ const held=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),materials.grass);held.
 let yaw=0,pitch=-.12,velY=0,onGround=false,move={x:0,y:0},lookPointer=null,lastX=0,lastY=0,mode='survival',selected='grass',day=1;
 let gameStarted=false,paused=false,sensitivity=.004,showFps=false,fpsFrames=0,fpsTime=0;const quality={low:{ratio:.8,shadows:false},medium:{ratio:1.15,shadows:true},high:{ratio:1.5,shadows:true}};
 const inventory={grass:32,dirt:24,stone:20,wood:16,leaves:12,sand:16,brick:12,glass:8,planks:0,coal:0,flower:0};
-const hotbarIds=['grass','dirt','stone','wood','leaves','sand','brick','glass'];
+const hotbarIds=['grass','dirt','stone','wood','leaves','sand','brick','glass','coal','iron','gold','diamond','snow'];
 const ray=new THREE.Raycaster();ray.far=6;
 function eye(){camera.position.set(player.x,player.y+1.55,player.z);camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch}
 function targetBlock(){eye();ray.setFromCamera(new THREE.Vector2(0,0),camera);return ray.intersectObjects([...chunkMeshes.values()].flat(),false)[0]||null}
