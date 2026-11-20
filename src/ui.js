@@ -1,7 +1,7 @@
 export class HUD {
   constructor(world){
     this.world=world;this.status=document.getElementById('location');this.clock=document.getElementById('clock');
-    this.map=document.getElementById('minimap');this.ctx=this.map.getContext('2d');this.message=document.getElementById('message');
+    this.map=document.getElementById('minimap');this.missionLabel=document.getElementById('mission-label');this.ctx=this.map.getContext('2d');this.message=document.getElementById('message');
     this.lastMessage=0;this.paused=false;
     const menu=document.getElementById('game-menu');
     const toggle=document.getElementById('menu-toggle');
@@ -15,6 +15,7 @@ export class HUD {
     this.status.textContent=Math.hypot(position.x,position.z)<48?'Центральный район':Math.abs(position.x)>100?'Западный район':Math.abs(position.z)>100?'Жилой район':'Городские улицы';
     const mins=(8*60+30+Math.floor(time*2))%(24*60);this.clock.textContent=`${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
     this.drawMap(position);
+    if(this.world.missionComplete)this.missionLabel.textContent='ЗАДАНИЕ ВЫПОЛНЕНО';
   }
   drawMap(p){
     const c=this.ctx,w=160;c.clearRect(0,0,w,w);c.fillStyle='#17262a';c.fillRect(0,0,w,w);
