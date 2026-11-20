@@ -10,9 +10,9 @@ export class World {
   constructor(scene) {
     this.scene = scene; this.blockers = []; this.traffic = []; this.npcs = []; this.time = 0;
     this.materials = {
-      road:mat(0x30383d,0.96), sidewalk:mat(0x9a9d96), grass:mat(0x647d5d),
-      line:mat(0xe7dfbd), glass:mat(0x41616a,0.3,0.25), trunk:mat(0x604a38),
-      leaf:mat(0x477454), lamp:mat(0x29353a,0.55,0.55), yellow:mat(0xd6ad55)
+      road:mat(0x252e35,0.94), sidewalk:mat(0xb2b5ad), grass:mat(0x526f50),
+      line:mat(0xf3e7c7,.72), glass:mat(0x284b60,0.18,0.38), trunk:mat(0x604331),
+      leaf:mat(0x356b45), lamp:mat(0x29353a,0.45,0.65), yellow:mat(0xe2b85d)
     };
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(520,520), this.materials.grass);
     ground.rotation.x=-Math.PI/2; ground.position.y=-0.08; ground.receiveShadow=true; scene.add(ground);
@@ -25,15 +25,26 @@ export class World {
     const {road,sidewalk,line}=this.materials;
     for(let i=-5;i<=5;i++){
       const p=i*34;
-      box(520,.08,11,road,0,.01,p,this.scene,false);
-      box(11,.08,520,road,p,.012,0,this.scene,false);
+      box(520,.12,11,road,0,.01,p,this.scene,false);
+      box(11,.12,520,road,p,.012,0,this.scene,false);
+      // Raised curbs and subtle road-edge strips
+      box(520,.22,.22,mat(0xd0d0c6),0,.12,p-5.55,this.scene,false);
+      box(520,.22,.22,mat(0xd0d0c6),0,.12,p+5.55,this.scene,false);
+      box(.22,.22,520,mat(0xd0d0c6),p-5.55,.12,0,this.scene,false);
+      box(.22,.22,520,mat(0xd0d0c6),p+5.55,.12,0,this.scene,false);
       box(520,.12,2,sidewalk,0,.04,p-6.7,this.scene,false);
       box(520,.12,2,sidewalk,0,.04,p+6.7,this.scene,false);
       box(2,.12,520,sidewalk,p-6.7,.04,0,this.scene,false);
       box(2,.12,520,sidewalk,p+6.7,.04,0,this.scene,false);
-      for(let k=-9;k<=9;k++){
-        box(3,.025,.16,line,k*14,.065,p,this.scene,false);
-        box(.16,.025,3,line,p,.066,k*14,this.scene,false);
+      for(let k=-17;k<=17;k++){
+        const mark=k*14;
+        box(3.8,.018,.13,line,mark,.083,p,this.scene,false);
+        box(.13,.018,3.8,line,p,.084,mark,this.scene,false);
+      }
+      // Crosswalks at each intersection
+      for(let n=-3;n<=3;n++){
+        box(.72,.025,4.8,line,p+n*1.45,.09,p-7.9,this.scene,false);
+        box(4.8,.025,.72,line,p-7.9,.09,p+n*1.45,this.scene,false);
       }
     }
   }
@@ -46,7 +57,21 @@ export class World {
       const x=gx*34+17, z=gz*34+17;
       const w=12+Math.random()*7, d=12+Math.random()*7, h=8+Math.random()*34;
       const color=palettes[Math.floor(Math.random()*palettes.length)];
-      const building=box(w,h,d,mat(color,.88),x,h/2,z,this.scene);
+      const facade=mat(color,.76);
+      const building=box(w,h,d,facade,x,h/2,z,this.scene);
+      const baseMat=mat(0x424e50,.82);
+      box(w+.35,.55,d+.35,baseMat,x,.3,z,this.scene,false);
+      box(w+.5,.22,d+.5,mat(0xd0c7b4,.82),x,h+.11,z,this.scene,false);
+      // Side facade windows and floor ledges give buildings depth.
+      for(let f=0;f<Math.floor(h/3.2);f++){
+        const y=1.6+f*3.2;
+        box(w+.08,.09,d+.08,mat(0x697779,.8),x,y,z,this.scene,false);
+        for(const side of [-1,1]) box(.07,1.15,1.0,windowMats[(f+gx+gz+30)%3],x+side*(w/2+.045),y+.65,z,this.scene,false);
+      }
+      if(h>18){
+        const rooftop=box(w*.48,.35,d*.5,mat(0x667578,.82),x,h+.32,z,this.scene,false);
+        box(w*.5,.16,.18,mat(0xb8c2bd),x,h+.56,z-d*.25,this.scene,false);
+      }
       this.blockers.push({x,z,hw:w/2+1,hd:d/2+1});
       // Repeating facade bands and windows add readable scale without thousands of draw calls.
       const floors=Math.max(2,Math.floor(h/3.2));
@@ -76,8 +101,10 @@ export class World {
     const {trunk,leaf}=this.materials;
     const t=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.28*s,2.3*s,7),trunk);
     t.position.set(x,1.15*s,z); t.castShadow=true; this.scene.add(t); this.blockers.push({x,z,hw:.72*s,hd:.72*s});
-    const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(1.25*s,1),leaf);
-    crown.position.set(x,2.8*s,z); crown.castShadow=true; this.scene.add(crown);
+    const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(1.25*s,2),leaf);
+    crown.position.set(x,2.8*s,z); crown.castShadow=true; crown.receiveShadow=true; this.scene.add(crown);
+    const crown2=new THREE.Mesh(new THREE.IcosahedronGeometry(.82*s,1),mat(0x477f4e));
+    crown2.position.set(x+.48*s,3.05*s,z-.18*s); crown2.castShadow=true; this.scene.add(crown2);
   }
   lamp(x,z){
     const g=new THREE.Group();
@@ -109,13 +136,20 @@ export class World {
   }
   createCar(color){
     const g=new THREE.Group(), bodyMat=mat(color,.38,.18), dark=mat(0x202a30,.3,.2), tire=mat(0x151719,.95);
-    box(2.1,.65,4,bodyMat,0,.75,0,g);
-    box(1.65,.72,1.9,mat(0x47616b,.25,.2),0,1.35,-.15,g,false);
+    box(2.1,.62,4,bodyMat,0,.72,0,g);
+    box(1.72,.76,1.95,mat(0x31566a,.16,.42),0,1.36,-.12,g,false);
+    box(1.72,.12,2.05,dark,0,1.02,-.12,g,false);
+    box(2.14,.18,.18,dark,0,.48,-1.98,g,false);
+    box(2.14,.18,.18,dark,0,.48,1.98,g,false);
+    box(1.65,.08,1.72,mat(0x1b2930,.35,.35),0,1.77,-.12,g,false);
     for(const x of [-1.05,1.05]) for(const z of [-1.25,1.25]){
-      const w=new THREE.Mesh(new THREE.CylinderGeometry(.38,.38,.22,12),tire);w.rotation.z=Math.PI/2;w.position.set(x,.4,z);g.add(w);
+      const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.39,.39,.24,16),tire);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.4,z);wheel.castShadow=true;g.add(wheel);
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(.19,.19,.255,12),mat(0x9da9ac,.28,.8));hub.rotation.z=Math.PI/2;hub.position.set(x,.4,z);g.add(hub);
     }
-    box(.5,.18,.08,mat(0xffe8bd),0,.78,-2.02,g,false);
-    box(.5,.18,.08,mat(0xe85a4e),0,.78,2.02,g,false);
+    box(.58,.2,.08,mat(0xfff1c9,.2,.15),-.62,.8,-2.04,g,false);
+    box(.58,.2,.08,mat(0xfff1c9,.2,.15),.62,.8,-2.04,g,false);
+    box(.55,.17,.08,mat(0xe85a4e,.3,.1),-.62,.8,2.04,g,false);
+    box(.55,.17,.08,mat(0xe85a4e,.3,.1),.62,.8,2.04,g,false);
     return g;
   }
   makePedestrians(){
