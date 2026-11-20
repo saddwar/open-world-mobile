@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 const root=document.querySelector('#game');
+const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x9bcff0);
 scene.fog=new THREE.Fog(0x9bcff0,34,105);
@@ -165,7 +166,6 @@ addEventListener('keydown',e=>{if(e.code==='Escape'){if(document.querySelector('
 addEventListener('keyup',e=>{if(['KeyW','KeyS'].includes(e.code))move.y=0;if(['KeyA','KeyD'].includes(e.code))move.x=0;if(e.code==='KeyF')stopMining()});
 updateBar();renderInventory();updateHeld();
 
-const $=id=>document.getElementById(id);
 function hideScreen(id){$(id).classList.add('hidden')}
 function showScreen(id){$(id).classList.remove('hidden')}
 function startGame(chosenMode){mode=chosenMode;setMode(chosenMode);gameStarted=true;paused=false;document.body.classList.add('game-active');hideScreen('main-menu');hideScreen('pause-menu');hideScreen('settings-panel');toast(chosenMode==='survival'?'Выживание':'Творчество')}
