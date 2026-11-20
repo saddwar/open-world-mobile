@@ -18,6 +18,8 @@ export class World {
     ground.rotation.x=-Math.PI/2; ground.position.y=-0.08; ground.receiveShadow=true; scene.add(ground);
     this.makeRoads(); this.makeBlocks(); this.makeStreetProps(); this.makePark(); this.makeMission();
     this.makeTraffic(); this.makePedestrians();
+    this.playerCar=this.createCar(0x2876a8); this.playerCar.position.set(5,0,1); this.scene.add(this.playerCar);
+    this.vehicle={mesh:this.playerCar,speed:0,occupied:false};
   }
   makeRoads() {
     const {road,sidewalk,line}=this.materials;
@@ -127,10 +129,44 @@ export class World {
       this.scene.add(g);this.npcs.push({mesh:g,phase:i*1.7,origin:g.position.clone()});
     }
   }
+  interactionAt(position,inVehicle=false){
+    if(inVehicle)return 'exit';
+    if(Math.hypot(position.x-this.playerCar.position.x,position.z-this.playerCar.position.z)<4)return 'enter';
+    if(this.marker.visible&&Math.hypot(position.x-17,position.z-17)<3.2)return 'mission';
+    return '';
+  }
+  interact(player){
+    if(player.inVehicle){
+      const car=this.vehicle.mesh, yaw=car.rotation.y;
+      const ex=car.position.x+Math.cos(yaw)*2.1, ez=car.position.z-Math.sin(yaw)*2.1;
+      if(this.isBlocked(ex,ez,.55)){return 'Здесь нельзя выйти из машины';}
+      player.position.set(ex,0,ez); player.inVehicle=false; player.mesh.visible=true; this.vehicle.occupied=false; this.vehicle.speed=0;
+      return 'Вы вышли из машины';
+    }
+    const car=this.vehicle.mesh;
+    if(Math.hypot(player.position.x-car.position.x,player.position.z-car.position.z)<4){
+      player.inVehicle=true; player.mesh.visible=false; this.vehicle.occupied=true; player.position.copy(car.position);
+      return 'Вы за рулём. Используй стик для движения';
+    }
+    if(this.marker.visible&&Math.hypot(player.position.x-17,player.position.z-17)<3.2){
+      this.marker.visible=false; this.missionComplete=true; return 'Задание выполнено! Первая точка найдена.';
+    }
+    return '';
+  }
+  driveVehicle(dt,input){
+    const v=this.vehicle, car=v.mesh;
+    const throttle=-input.moveY;
+    v.speed=THREE.MathUtils.damp(v.speed,throttle*12,3.2,dt);
+    if(Math.abs(v.speed)>.25)car.rotation.y-=input.moveX*dt*1.35*Math.sign(v.speed);
+    const dx=-Math.sin(car.rotation.y)*v.speed*dt, dz=-Math.cos(car.rotation.y)*v.speed*dt;
+    const nx=car.position.x+dx,nz=car.position.z+dz;
+    if(!this.isBlocked(nx,nz,1.15)){car.position.x=nx;car.position.z=nz;}else v.speed=0;
+  }
   isBlocked(x,z,r=.55){
     if(Math.abs(x)>250||Math.abs(z)>250)return true;
     if(this.blockers.some(b=>Math.abs(x-b.x)<b.hw+r&&Math.abs(z-b.z)<b.hd+r))return true;
     if(this.traffic.some(c=>Math.abs(x-c.mesh.position.x)<1.35+r&&Math.abs(z-c.mesh.position.z)<2.25+r))return true;
+    if(this.vehicle&&!this.vehicle.occupied&&Math.abs(x-this.vehicle.mesh.position.x)<1.25+r&&Math.abs(z-this.vehicle.mesh.position.z)<2.2+r)return true;
     return this.npcs.some(n=>Math.abs(x-n.mesh.position.x)<.48+r&&Math.abs(z-n.mesh.position.z)<.48+r);
   }
   update(dt,time,playerPosition){
