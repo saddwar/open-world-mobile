@@ -84,6 +84,10 @@ function rebuildChunk(cx,cz){
 }
 function solidAt(x,y,z){const k=key(x,y,z);return blocks.has(k)?blocks.get(k)!==null:generatedBlock(x,y,z)!==null}
 function collides(px,py,pz){const r=.29,h=1.75;for(let x=Math.floor(px-r);x<=Math.floor(px+r);x++)for(let z=Math.floor(pz-r);z<=Math.floor(pz+r);z++)for(let y=Math.floor(py+.001);y<=Math.floor(py+h-.001);y++)if(solidAt(x,y,z))return true;return false}
+function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK);for(let x=px-RADIUS;x<=px+RADIUS;x++)for(let z=pz-RADIUS;z<=pz+RADIUS;z++)if(!loadedChunks.has(chunkKey(x,z)))rebuildChunk(x,z);for(const ck of [...loadedChunks]){const [x,z]=ck.split(',').map(Number);if(Math.abs(x-px)>RADIUS+1||Math.abs(z-pz)>RADIUS+1){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck)}}loadAnimalsAround(px,pz)}
+function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k)&&blocks.get(k)!==null)return false;blocks.set(k,type);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return true}
+function removeBlock(x,y,z){const k=key(x,y,z),old=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!old)return null;blocks.set(k,null);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return old}
+// Player camera is truly first-person; only a small arm and held block are visible.
 const animalChunks=new Map(), plantChunks=new Map(), animalList=[];
 const animalMats={
  pig:new THREE.MeshLambertMaterial({color:0xe99a9a}),
@@ -123,10 +127,6 @@ function loadAnimalsAround(px,pz){
  for(const ck of [...animalChunks.keys()]){const [cx,cz]=ck.split(',').map(Number);if(Math.abs(cx-px)>RADIUS+1||Math.abs(cz-pz)>RADIUS+1){for(const a of animalChunks.get(ck)){scene.remove(a);const i=animalList.indexOf(a);if(i>=0)animalList.splice(i,1)}for(const p of plantChunks.get(ck)||[])scene.remove(p);animalChunks.delete(ck);plantChunks.delete(ck)}}
 }
 function updateAnimals(dt,time){for(const a of animalList){const u=a.userData;u.turn+=dt;if(u.turn>2.5+u.phase%3){u.turn=0;u.phase+=1.7+Math.sin(time+u.phase);u.speed=.15+Math.abs(Math.sin(u.phase))*.35}const nx=a.position.x+Math.sin(u.phase)*u.speed*dt,nz=a.position.z+Math.cos(u.phase)*u.speed*dt;if(hash(Math.floor(nx),Math.floor(nz))>.08){a.position.x=nx;a.position.z=nz;a.position.y=heightAt(Math.floor(nx),Math.floor(nz))+.02;a.rotation.y=Math.atan2(Math.sin(u.phase),Math.cos(u.phase))}a.position.y+=Math.sin(time*3+u.phase)*.008}}
-function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK);for(let x=px-RADIUS;x<=px+RADIUS;x++)for(let z=pz-RADIUS;z<=pz+RADIUS;z++)if(!loadedChunks.has(chunkKey(x,z)))rebuildChunk(x,z);for(const ck of [...loadedChunks]){const [x,z]=ck.split(',').map(Number);if(Math.abs(x-px)>RADIUS+1||Math.abs(z-pz)>RADIUS+1){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck)}}loadAnimalsAround(px,pz)}
-function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k)&&blocks.get(k)!==null)return false;blocks.set(k,type);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return true}
-function removeBlock(x,y,z){const k=key(x,y,z),old=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!old)return null;blocks.set(k,null);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return old}
-// Player camera is truly first-person; only a small arm and held block are visible.
 const player={x:0,y:heightAt(0,0)+1,z:0};loadAround();loadAround();
 const hand=new THREE.Group();camera.add(hand);hand.position.set(.42,-.38,-.62);
 const sleeve=new THREE.Mesh(new THREE.BoxGeometry(.18,.25,.22),new THREE.MeshLambertMaterial({color:0x3477ad}));sleeve.position.set(0,-.12,0);hand.add(sleeve);
