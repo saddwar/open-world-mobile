@@ -57,7 +57,7 @@ function rebuildChunk(cx,cz){
  chunkMeshes.set(ck,group);loadedChunks.add(ck);
 }
 function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK);for(let x=px-RADIUS;x<=px+RADIUS;x++)for(let z=pz-RADIUS;z<=pz+RADIUS;z++)if(!loadedChunks.has(chunkKey(x,z)))rebuildChunk(x,z);for(const ck of [...loadedChunks]){const [x,z]=ck.split(',').map(Number);if(Math.abs(x-px)>RADIUS+1||Math.abs(z-pz)>RADIUS+1){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck)}}}
-function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k))return false;blocks.set(k,type);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return true}
+function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k)&&blocks.get(k)!==null)return false;blocks.set(k,type);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return true}
 function removeBlock(x,y,z){const k=key(x,y,z),old=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!old)return null;blocks.set(k,null);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return old}
 // Player camera is truly first-person; only a small arm and held block are visible.
 const player={x:0,y:heightAt(0,0)+1,z:0};\nloadAround();
