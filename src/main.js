@@ -90,44 +90,65 @@ function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k)&&block
 function removeBlock(x,y,z){const k=key(x,y,z),old=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!old)return null;blocks.set(k,null);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return old}
 // Player camera is truly first-person; only a small arm and held block are visible.
 const animalChunks=new Map(), plantChunks=new Map(), animalList=[];
-const animalMats={
- pig:new THREE.MeshLambertMaterial({color:0xe99a9a}),
- cow:new THREE.MeshLambertMaterial({color:0xf0eee2}),
- sheep:new THREE.MeshLambertMaterial({color:0xd9d7cb}),
- dark:new THREE.MeshLambertMaterial({color:0x39332e}),
- hoof:new THREE.MeshLambertMaterial({color:0x57443a}),
- pink:new THREE.MeshLambertMaterial({color:0xe87583}),
- grass:new THREE.MeshLambertMaterial({color:0x4d9b42}),
- stem:new THREE.MeshLambertMaterial({color:0x43843b}),
- petal:new THREE.MeshLambertMaterial({color:0xf0b6d0}),
- yellow:new THREE.MeshLambertMaterial({color:0xf4d45e})
+const animalMixers=[];
+const animalAssets={
+ pig:'https://tevy.dev/models/pig/v1/lod0.glb',
+ cow:'https://tevy.dev/models/dairy-cow/v2/lod0.glb',
+ sheep:'https://tevy.dev/models/sheep/v1/lod0.glb'
 };
-function boxPart(parent,w,h,d,mat,x,y,z){const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh}
+const animalTemplates=new Map();
+const animalLoader=new (await import('three/addons/loaders/GLTFLoader.js')).GLTFLoader();
+const animalSkeletonUtils=await import('three/addons/utils/SkeletonUtils.js');
+const animalLoadPromises=Object.entries(animalAssets).map(async([type,url])=>{
+ try{
+  const gltf=await animalLoader.loadAsync(url);
+  animalTemplates.set(type,{scene:gltf.scene,animations:gltf.animations||[]});
+  for(const animal of animalList)if(animal.userData.type===type)attachAnimalModel(animal,type);
+ }catch(error){console.warn('Не удалось загрузить модель животного:',type,error)}
+});
+function attachAnimalModel(wrapper,type){
+ const template=animalTemplates.get(type);if(!template||wrapper.userData.modelAttached)return;
+ const model=animalSkeletonUtils.clone(template.scene);
+ model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
+ const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3());
+ const targetHeight=type==='cow'?1.45:type==='sheep'?1.0:0.9;
+ const scale=targetHeight/Math.max(size.y,.001);model.scale.setScalar(scale);
+ const scaledBounds=new THREE.Box3().setFromObject(model);model.position.y-=scaledBounds.min.y;
+ wrapper.add(model);wrapper.userData.modelAttached=true;
+ const mixer=new THREE.AnimationMixer(model);
+ const clips=template.animations;
+ const walk=clips.find(c=>/walk/i.test(c.name))||clips.find(c=>/trot/i.test(c.name));
+ const idle=clips.find(c=>/idle/i.test(c.name))||clips.find(c=>/graze/i.test(c.name));
+ const action=mixer.clipAction(walk||idle||clips[0]);
+ if(action)action.play();
+ wrapper.userData.mixer=mixer;
+ animalMixers.push(mixer);
+}
 function makeAnimal(type,x,z){
- const group=new THREE.Group(),bodyMat=animalMats[type],legMat=type==='cow'?animalMats.dark:animalMats.hoof;
- boxPart(group,.9,.62,.52,bodyMat,0,.85,0);
- boxPart(group,.38,.42,.4,bodyMat,0,1.13,-.37);
- if(type==='cow'){for(const side of [-1,1])boxPart(group,.25,.25,.54,animalMats.dark,side*.22,.9,.02)}
- if(type==='pig')boxPart(group,.22,.14,.08,animalMats.pink,0,1.13,-.59);
- if(type==='sheep')boxPart(group,.98,.2,.6,animalMats.cow,0,1.13,.02);
- for(const lx of [-.27,.27])for(const lz of [-.17,.17])boxPart(group,.16,.42,.16,legMat,lx,.28,lz);
- const eyeMat=new THREE.MeshLambertMaterial({color:0x202020});
- boxPart(group,.055,.055,.025,eyeMat,-.11,1.22,-.585);boxPart(group,.055,.055,.025,eyeMat,.11,1.22,-.585);
- group.position.set(x,heightAt(Math.floor(x),Math.floor(z))+0.02,z);
- group.userData={type,phase:hash(Math.floor(x*13),Math.floor(z*17))*Math.PI*2,speed:.25+hash(Math.floor(x),Math.floor(z))*0.25,turn:0};
- scene.add(group);animalList.push(group);return group;
+ const group=new THREE.Group();
+ group.position.set(x,heightAt(Math.floor(x),Math.floor(z))+.02,z);
+ group.userData={type,phase:hash(Math.floor(x*13),Math.floor(z*17))*Math.PI*2,speed:type==='cow'?.8:type==='sheep'?.65:.75,turn:0,modelAttached:false,mixer:null};
+ scene.add(group);animalList.push(group);attachAnimalModel(group,type);return group;
 }
 function loadAnimalsAround(px,pz){
  for(let cx=px-RADIUS;cx<=px+RADIUS;cx++)for(let cz=pz-RADIUS;cz<=pz+RADIUS;cz++){
   const ck=chunkKey(cx,cz);if(animalChunks.has(ck))continue;
   const animals=[],plants=[],r=hash(cx+902,cz-411);
   if(r>.72){const count=1;for(let n=0;n<count;n++){const x=cx*CHUNK+3+Math.floor(hash(cx*7+n,cz*11)*10),z=cz*CHUNK+3+Math.floor(hash(cx*13,cz*5+n)*10);const type=['pig','cow','sheep'][Math.floor(hash(cx+n*3,cz-n*7)*3)];animals.push(makeAnimal(type,x,z))}}
-  for(let n=0;n<4;n++){const x=cx*CHUNK+hash(cx*31+n,cz*17)*CHUNK,z=cz*CHUNK+hash(cx*19,cz*29+n)*CHUNK;if(hash(Math.floor(x*3),Math.floor(z*3))<.78||heightAt(Math.floor(x),Math.floor(z))<=2)continue;const plant=new THREE.Group();plant.position.set(x,heightAt(Math.floor(x),Math.floor(z))+.03,z);boxPart(plant,.07,.32,.07,animalMats.stem,0,.16,0);const flowerMat=hash(Math.floor(x*9),Math.floor(z*9))>.5?animalMats.yellow:animalMats.petal;boxPart(plant,.24,.12,.24,flowerMat,0,.34,0);scene.add(plant);plants.push(plant)}
-  animalChunks.set(ck,animals);plantChunks.set(ck,plants);
+  for(let n=0;n<4;n++){const x=cx*CHUNK+hash(cx*31+n,cz*17)*CHUNK,z=cz*CHUNK+hash(cx*19,cz*29+n)*CHUNK;if(hash(Math.floor(x*3),Math.floor(z*3))<.78||heightAt(Math.floor(x),Math.floor(z))<=2)continue;const plant=new THREE.Group();plant.position.set(x,heightAt(Math.floor(x),Math.floor(z))+.03,z);const stem=new THREE.Mesh(new THREE.CylinderGeometry(.025,.035,.32,5),new THREE.MeshLambertMaterial({color:0x43843b}));stem.position.y=.16;plant.add(stem);const flower=new THREE.Mesh(new THREE.DodecahedronGeometry(.13,0),new THREE.MeshLambertMaterial({color:hash(Math.floor(x*9),Math.floor(z*9))>.5?0xf4d45e:0xf0b6d0}));flower.position.y=.34;plant.add(flower);scene.add(plant);plants.push(plant)}
+  animalChunks.set(ck,animals);plantChunks.set(ck,plants)
  }
  for(const ck of [...animalChunks.keys()]){const [cx,cz]=ck.split(',').map(Number);if(Math.abs(cx-px)>RADIUS+1||Math.abs(cz-pz)>RADIUS+1){for(const a of animalChunks.get(ck)){scene.remove(a);const i=animalList.indexOf(a);if(i>=0)animalList.splice(i,1)}for(const p of plantChunks.get(ck)||[])scene.remove(p);animalChunks.delete(ck);plantChunks.delete(ck)}}
 }
-function updateAnimals(dt,time){for(const a of animalList){const u=a.userData;u.turn+=dt;if(u.turn>2.5+u.phase%3){u.turn=0;u.phase+=1.7+Math.sin(time+u.phase);u.speed=.15+Math.abs(Math.sin(u.phase))*.35}const nx=a.position.x+Math.sin(u.phase)*u.speed*dt,nz=a.position.z+Math.cos(u.phase)*u.speed*dt;if(hash(Math.floor(nx),Math.floor(nz))>.08){a.position.x=nx;a.position.z=nz;a.position.y=heightAt(Math.floor(nx),Math.floor(nz))+.02;a.rotation.y=Math.atan2(Math.sin(u.phase),Math.cos(u.phase))}a.position.y+=Math.sin(time*3+u.phase)*.008}}
+function updateAnimals(dt,time){
+ for(const a of animalList){
+  const u=a.userData;u.turn+=dt;
+  if(u.turn>2.5+u.phase%3){u.turn=0;u.phase+=1.7+Math.sin(time+u.phase);u.speed=.15+Math.abs(Math.sin(u.phase))*.35}
+  const nx=a.position.x+Math.sin(u.phase)*u.speed*dt,nz=a.position.z+Math.cos(u.phase)*u.speed*dt;
+  if(hash(Math.floor(nx),Math.floor(nz))>.08){a.position.x=nx;a.position.z=nz;a.position.y=heightAt(Math.floor(nx),Math.floor(nz))+.02;a.rotation.y=Math.atan2(Math.sin(u.phase),Math.cos(u.phase))}
+  if(u.mixer)u.mixer.update(dt);
+ }
+}
 const player={x:0,y:heightAt(0,0)+1,z:0};loadAround();loadAround();
 const hand=new THREE.Group();camera.add(hand);hand.position.set(.42,-.38,-.62);
 const sleeve=new THREE.Mesh(new THREE.BoxGeometry(.18,.25,.22),new THREE.MeshLambertMaterial({color:0x3477ad}));sleeve.position.set(0,-.12,0);hand.add(sleeve);
