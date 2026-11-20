@@ -20,15 +20,41 @@ const defs=[
 ];
 const names=Object.fromEntries(defs.map(d=>[d[0],d[1]]));
 function texture(type,base){
- const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');
- const col='#'+base.toString(16).padStart(6,'0');g.fillStyle=col;g.fillRect(0,0,64,64);
- let seed=type.split('').reduce((a,v)=>a+v.charCodeAt(0),17);
- const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
- for(let i=0;i<210;i++){const v=Math.floor(rnd()*55)-27;g.fillStyle='rgba('+ (v>0?'255,255,255,':'0,0,0,') +(0.08+rnd()*.2)+')';g.fillRect(Math.floor(rnd()*64),Math.floor(rnd()*64),2+Math.floor(rnd()*7),2+Math.floor(rnd()*5))}
- if(type==='grass'){g.fillStyle='#4d873e';g.fillRect(0,0,64,13);for(let i=0;i<30;i++){g.fillStyle=i%2?'#7ebd56':'#39783c';g.fillRect(rnd()*64,0,2,12)}}
- if(type==='wood'||type==='planks'){g.strokeStyle='rgba(54,31,15,.35)';g.lineWidth=3;for(let x=8;x<64;x+=13){g.beginPath();g.moveTo(x,0);g.lineTo(x+(rnd()*5),64);g.stroke()}}
- if(type==='glass'){g.clearRect(0,0,64,64);g.fillStyle='rgba(142,220,242,.35)';g.fillRect(0,0,64,64);g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=4;g.strokeRect(3,3,58,58);g.beginPath();g.moveTo(12,52);g.lineTo(48,12);g.stroke()}
- const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestMipmapNearestFilter;return t;
+ // Original 16x16 pixel-art tiles inspired by classic voxel games.
+ const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');
+ const hex=n=>'#'+n.toString(16).padStart(6,'0');
+ const palettes={
+  grass:['#57913d','#68a947','#78b94d','#477f35','#8ac85a'],
+  dirt:['#765038','#865b3d','#966747','#68452f','#a47750'],
+  stone:['#777d80','#898f91','#9ba0a1','#656b6e','#b0b3b1'],
+  wood:['#704523','#86552b','#a16a35','#593719','#bd8748'],
+  leaves:['#286b35','#347e3b','#438e42','#1e592d','#65a34a'],
+  sand:['#c7b477','#d9c58a','#ead69a','#b6a36b','#f0dfa9'],
+  brick:['#914638','#aa5948','#c06a55','#71382f','#d07b60'],
+  glass:['#79b9c8','#a5dce5','#d5f4f5','#4d98ad','#e9ffff'],
+  planks:['#9b6838','#b27c45','#c99558','#80552f','#d9a96a'],
+  coal:['#353a3d','#484e50','#5a6061','#252a2d','#717777'],
+  flower:['#4b843a','#68a94b','#e9a7c9','#f6d7e8','#fff0a5']
+ };
+ const p=palettes[type]||palettes.grass;
+ g.fillStyle=p[0];g.fillRect(0,0,16,16);
+ // Structured, block-specific pixel patterns rather than random noise.
+ for(let y=0;y<16;y++)for(let x=0;x<16;x++){
+  let idx=0;
+  if(type==='grass')idx=y<3?(x%4===0?2:1):((x*7+y*11)%13===0?3:0);
+  else if(type==='dirt')idx=(x*3+y*5)%17===0?4:((x+y*2)%7===0?1:0);
+  else if(type==='stone'||type==='coal')idx=(x*5+y*3)%19===0?4:((x*2+y*7)%9===0?1:0);
+  else if(type==='wood')idx=x%5===0?3:(x%4===1?2:((y%6===0)?1:0));
+  else if(type==='planks')idx=y%5===0?3:((x+y)%11===0?2:0);
+  else if(type==='leaves')idx=(x*7+y*3)%8===0?4:((x+y)%3===0?1:0);
+  else if(type==='sand')idx=(x*11+y*5)%23===0?3:((x+y*2)%9===0?2:0);
+  else if(type==='brick')idx=(y%4===0||((x+(Math.floor(y/4)%2)*4)%8===0))?3:((x+y)%13===0?4:1);
+  else if(type==='glass')idx=(x===2&&y>2&&y<13)||(y===12&&x>2&&x<7)?2:((x===0||y===0)?3:0);
+  else if(type==='flower')idx=y>8?((x+y)%4===0?1:0):((x===7||x===8||y===5||y===6)?2:((x===6&&y===4)?4:0));
+  if(idx){g.fillStyle=p[idx];g.fillRect(x,y,1,1)}
+ }
+ if(type==='grass'){g.fillStyle=p[0];g.fillRect(0,3,16,13);g.fillStyle=p[1];for(let x=0;x<16;x+=3)g.fillRect(x,2,2,1)}
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;t.generateMipmaps=false;return t;
 }
 const materials={};
 for(const [id,, ,color] of defs){const tex=texture(id,color);materials[id]=new THREE.MeshLambertMaterial({map:tex,transparent:id==='glass',opacity:id==='glass'?.62:1})}
