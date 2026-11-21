@@ -93,12 +93,12 @@ function rebuildChunk(cx,cz){
  const columnHeight=(x,z)=>{const k=x+','+z;if(!heightCache.has(k))heightCache.set(k,heightAt(x,z));return heightCache.get(k)};
  // Build tree voxels once per chunk (including a 2-block border), not once per voxel.
  for(let tx=minX-2;tx<=maxX+2;tx++)for(let tz=minZ-2;tz<=maxZ+2;tz++){
-  const th=columnHeight(tx,tz);if(hash(tx+193,tz-71)<=.974||th<=2)continue;
-  for(let y=th+1;y<=th+6;y++)for(let x=Math.max(minX-1,tx-2);x<=Math.min(maxX+1,tx+2);x++)for(let z=Math.max(minZ-1,tz-2);z<=Math.min(maxZ+1,tz+2);z++){
+  const th=columnHeight(tx,tz);if(hash(tx+193,tz-71)<=.982||th<=2)continue;
+  for(let y=th+1;y<=th+5;y++)for(let x=Math.max(minX-1,tx-2);x<=Math.min(maxX+1,tx+2);x++)for(let z=Math.max(minZ-1,tz-2);z<=Math.min(maxZ+1,tz+2);z++){
    const dx=x-tx,dz=z-tz;
    if(dx===0&&dz===0&&y<=th+4)treeBlocks.set(key(x,y,z),'wood');
    // Compact canopy: fewer leaf blocks, with a small crown around the upper trunk.
-   else if(Math.abs(dx)+Math.abs(dz)+Math.abs(y-th-4)<=3)treeBlocks.set(key(x,y,z),'leaves');
+   else if(Math.abs(dx)+Math.abs(dz)+Math.abs(y-th-4)<=2.25&&y>=th+2)treeBlocks.set(key(x,y,z),'leaves');
   }
  }
  const sample=(x,y,z)=>{
@@ -119,7 +119,7 @@ function rebuildChunk(cx,cz){
   }
  }
  const group=[],dummy=new THREE.Object3D();
- const foliageGeometry=new THREE.IcosahedronGeometry(.68,1);
+ const foliageGeometry=new THREE.IcosahedronGeometry(.54,1);
  const trunkGeometry=new THREE.CylinderGeometry(.34,.43,1,8,1);
  for(const [type,coords] of Object.entries(buckets)){
   // Rounded low-poly foliage and tapered trunks replace cube-shaped tree parts.
@@ -128,7 +128,7 @@ function rebuildChunk(cx,cz){
   if(['grass','leaves','dirt'].includes(type))mesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(coords.length*3),3);
   coords.forEach((p,i)=>{
    dummy.position.set(p[0]+.5,p[1]+.5,p[2]+.5);
-   if(type==='leaves'){const s=.9+hash(p[0],p[2])*.28;dummy.scale.set(s,.88+hash(p[2],p[0])*.3,s);dummy.rotation.set(0,hash(p[0]+4,p[2]+7)*.35,0)}
+   if(type==='leaves'){const s=.78+hash(p[0],p[2])*.16;dummy.scale.set(s,.82+hash(p[2],p[0])*.14,s);dummy.rotation.set(0,hash(p[0]+4,p[2]+7)*.35,0)}
    else{dummy.scale.set(1,1,1);dummy.rotation.set(0,0,0)}
    dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
    if(mesh.instanceColor){const v=hash(p[0]+31,p[2]-17),color=new THREE.Color();color.setHSL(type==='leaves'?.31:.27,type==='leaves'?.48:.42,.92+v*.08);mesh.setColorAt(i,color)}
