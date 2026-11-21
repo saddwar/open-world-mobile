@@ -65,7 +65,7 @@ const materials={};
 for(const [id,, ,color] of defs){const tex=texture(id,color);materials[id]=new THREE.MeshLambertMaterial({map:tex,transparent:id==='glass',opacity:id==='glass'?.62:1})}
 materials.flower=new THREE.MeshLambertMaterial({color:0xe6a6d0});
 const cube=new THREE.BoxGeometry(1,1,1),blocks=new Map(),chunkMeshes=new Map();
-const key=(x,y,z)=>x+','+y+','+z,CHUNK=16,loadedChunks=new Set();let RADIUS=3;
+const key=(x,y,z)=>x+','+y+','+z,CHUNK=16,loadedChunks=new Set(),chunkQueue=[],queuedChunks=new Set();let RADIUS=3;
 function chunkKey(x,z){return x+','+z}
 function hash(x,z){let n=(Math.imul(x,374761393)+Math.imul(z,668265263))|0;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967295}
 const terrain=new TerrainGenerator(20261120);
@@ -90,7 +90,8 @@ function rebuildChunk(cx,cz){
 }
 function solidAt(x,y,z){const k=key(x,y,z);return blocks.has(k)?blocks.get(k)!==null:generatedBlock(x,y,z)!==null}
 function collides(px,py,pz){const r=.29,h=1.75;for(let x=Math.floor(px-r);x<=Math.floor(px+r);x++)for(let z=Math.floor(pz-r);z<=Math.floor(pz+r);z++)for(let y=Math.floor(py+.001);y<=Math.floor(py+h-.001);y++)if(solidAt(x,y,z))return true;return false}
-function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK);for(let x=px-RADIUS;x<=px+RADIUS;x++)for(let z=pz-RADIUS;z<=pz+RADIUS;z++)if(!loadedChunks.has(chunkKey(x,z)))rebuildChunk(x,z);for(const ck of [...loadedChunks]){const [x,z]=ck.split(',').map(Number);if(Math.abs(x-px)>RADIUS+1||Math.abs(z-pz)>RADIUS+1){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck)}}loadAnimalsAround(px,pz)}
+function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK);for(let x=px-RADIUS;x<=px+RADIUS;x++)for(let z=pz-RADIUS;z<=pz+RADIUS;z++){const ck=chunkKey(x,z);if(!loadedChunks.has(ck)&&!queuedChunks.has(ck)){chunkQueue.push({x,z,d:Math.abs(x-px)+Math.abs(z-pz)});queuedChunks.add(ck)}}chunkQueue.sort((a,b)=>a.d-b.d);for(const ck of [...loadedChunks]){const [x,z]=ck.split(',').map(Number);if(Math.abs(x-px)>RADIUS+1||Math.abs(z-pz)>RADIUS+1){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck)}}loadAnimalsAround(px,pz)}
+function processChunkQueue(){const next=chunkQueue.shift();if(!next)return;const ck=chunkKey(next.x,next.z);queuedChunks.delete(ck);if(!loadedChunks.has(ck))rebuildChunk(next.x,next.z);}
 function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k)&&blocks.get(k)!==null)return false;blocks.set(k,type);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return true}
 function removeBlock(x,y,z){const k=key(x,y,z),old=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!old)return null;blocks.set(k,null);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return old}
 // Player camera is truly first-person; only a small arm and held block are visible.
@@ -176,11 +177,13 @@ function updateAnimals(dt,time){
   const u=a.userData;u.turn+=dt;
   if(u.turn>2.5+u.phase%3){u.turn=0;u.phase+=1.7+Math.sin(time+u.phase);u.speed=.15+Math.abs(Math.sin(u.phase))*.35}
   const nx=a.position.x+Math.sin(u.phase)*u.speed*dt,nz=a.position.z+Math.cos(u.phase)*u.speed*dt;
-  if(hash(Math.floor(nx),Math.floor(nz))>.08){a.position.x=nx;a.position.z=nz;a.position.y=heightAt(Math.floor(nx),Math.floor(nz))+.02;a.rotation.y=Math.atan2(Math.sin(u.phase),Math.cos(u.phase))}
+  const oldGround=heightAt(Math.floor(a.position.x),Math.floor(a.position.z)),newGround=heightAt(Math.floor(nx),Math.floor(nz));
+  // Keep animals on the terrain surface; turn around at steep edges instead of stepping into holes.
+  if(Math.abs(newGround-oldGround)<=0.65&&hash(Math.floor(nx),Math.floor(nz))>.08){a.position.x=nx;a.position.z=nz;a.position.y=newGround+.045;a.rotation.y=Math.atan2(Math.sin(u.phase),Math.cos(u.phase))}else{u.phase+=Math.PI*.72;u.turn=0}
   if(u.mixer)u.mixer.update(dt);
  }
 }
-const player={x:0,y:heightAt(0,0)+1,z:0};loadAround();loadAround();
+const player={x:0,y:heightAt(0,0)+1,z:0};loadAround();
 const hand=new THREE.Group();camera.add(hand);hand.position.set(.42,-.38,-.62);
 const sleeve=new THREE.Mesh(new THREE.BoxGeometry(.18,.25,.22),new THREE.MeshLambertMaterial({color:0x3477ad}));sleeve.position.set(0,-.12,0);hand.add(sleeve);
 const held=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),materials.grass);held.position.set(0,.02,-.17);hand.add(held);camera.add(hand);scene.add(camera);
@@ -236,7 +239,7 @@ $('distance-setting').oninput=e=>{RADIUS=Number(e.target.value);$('distance-valu
 $('quality-setting').onchange=e=>{const q=quality[e.target.value];renderer.setPixelRatio(Math.min(devicePixelRatio,q.ratio));renderer.shadowMap.enabled=q.shadows;sun.castShadow=q.shadows;renderer.shadowMap.needsUpdate=true;renderer.setSize(innerWidth,innerHeight)};
 $('fps-setting').onchange=e=>{showFps=e.target.checked;if(!showFps)$('fps-counter').textContent=''};
 
-const clock=new THREE.Clock();let elapsed=0;
-function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;updateMining(dt);updateAnimals(dt,elapsed);fpsFrames++;fpsTime+=dt;if(fpsTime>=.5){document.querySelector('#fps-counter').textContent=showFps?Math.round(fpsFrames/fpsTime)+' FPS':'';fpsFrames=0;fpsTime=0}const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));const dir=forward.multiplyScalar(gameStarted&&!paused?-move.y:0).add(right.multiplyScalar(gameStarted&&!paused?move.x:0));if(dir.lengthSq()>0){dir.normalize();const speed=mode==='creative'?8:5;const nx=player.x+dir.x*speed*dt,nz=player.z+dir.z*speed*dt;if(mode==='creative'){player.x=nx;player.z=nz}else{if(!collides(nx,player.y,player.z))player.x=nx;if(!collides(player.x,player.y,nz))player.z=nz}}if(gameStarted&&!paused&&mode==='creative'&&move.y<-.1)player.y+=dt*3;else if(gameStarted&&!paused){velY-=19*dt;const nextY=player.y+velY*dt;if(velY<=0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else if(velY>0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else{if(velY<0){player.y=Math.floor(nextY)+1;onGround=true}else{player.y=Math.ceil(nextY)-1.75;onGround=false}velY=0}}eye();loadAround();sun.position.x=-25+Math.sin(elapsed*.025)*10;sun.intensity=1.8+Math.sin(elapsed*.025)*.25;if(Math.floor(elapsed/75)+1>day){day++;document.querySelector('#stats').textContent='❤ ♥ ♥ ♥ ♥　☀ День '+day}renderer.render(scene,camera)}
+const clock=new THREE.Clock();let elapsed=0,lastPlayerChunkX=NaN,lastPlayerChunkZ=NaN;
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;processChunkQueue();updateMining(dt);updateAnimals(dt,elapsed);fpsFrames++;fpsTime+=dt;if(fpsTime>=.5){document.querySelector('#fps-counter').textContent=showFps?Math.round(fpsFrames/fpsTime)+' FPS':'';fpsFrames=0;fpsTime=0}const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));const dir=forward.multiplyScalar(gameStarted&&!paused?-move.y:0).add(right.multiplyScalar(gameStarted&&!paused?move.x:0));if(dir.lengthSq()>0){dir.normalize();const speed=mode==='creative'?8:5;const nx=player.x+dir.x*speed*dt,nz=player.z+dir.z*speed*dt;if(mode==='creative'){player.x=nx;player.z=nz}else{if(!collides(nx,player.y,player.z))player.x=nx;if(!collides(player.x,player.y,nz))player.z=nz}}if(gameStarted&&!paused&&mode==='creative'&&move.y<-.1)player.y+=dt*3;else if(gameStarted&&!paused){velY-=19*dt;const nextY=player.y+velY*dt;if(velY<=0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else if(velY>0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else{if(velY<0){player.y=Math.floor(nextY)+1;onGround=true}else{player.y=Math.ceil(nextY)-1.75;onGround=false}velY=0}}eye();const currentChunkX=Math.floor(player.x/CHUNK),currentChunkZ=Math.floor(player.z/CHUNK);if(currentChunkX!==lastPlayerChunkX||currentChunkZ!==lastPlayerChunkZ){lastPlayerChunkX=currentChunkX;lastPlayerChunkZ=currentChunkZ;loadAround()}sun.position.x=-25+Math.sin(elapsed*.025)*10;sun.intensity=1.8+Math.sin(elapsed*.025)*.25;if(Math.floor(elapsed/75)+1>day){day++;document.querySelector('#stats').textContent='❤ ♥ ♥ ♥ ♥　☀ День '+day}renderer.render(scene,camera)}
 loop();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5))});
 document.querySelector('#loading').remove();
