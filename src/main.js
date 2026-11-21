@@ -12,7 +12,7 @@ const skyCtx=skyCanvas.getContext('2d'),skyGradient=skyCtx.createLinearGradient(
 skyGradient.addColorStop(0,'#477eaa');skyGradient.addColorStop(.48,'#8db8ce');skyGradient.addColorStop(1,'#d4d9c9');
 skyCtx.fillStyle=skyGradient;skyCtx.fillRect(0,0,4,256);
 const skyTexture=new THREE.CanvasTexture(skyCanvas);skyTexture.colorSpace=THREE.SRGBColorSpace;scene.background=skyTexture;
-scene.fog=new THREE.Fog(0xb9c9c5,Math.max(55,Math.min(420,RADIUS*7)),Math.max(205,Math.min(700,RADIUS*12)));
+scene.fog=new THREE.Fog(0xb9c9c5,55,205); // RADIUS is initialized below; the slider updates fog after startup.
 const camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.08,240);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(devicePixelRatio);renderer.setSize(innerWidth,innerHeight);
