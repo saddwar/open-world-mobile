@@ -6,15 +6,18 @@ import { TerrainGenerator, BIOMES } from '../world/TerrainGenerator.js';
 const root=document.querySelector('#game');
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x657168);
-scene.fog=new THREE.Fog(0x657168,11,52);
+scene.background=new THREE.Color(0x87918f);
+scene.fog=new THREE.Fog(0x87918f,17,72);
 const camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.08,150);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
 root.appendChild(renderer.domElement);
-scene.add(new THREE.HemisphereLight(0xe9f7ff,0x596448,2));
-const sun=new THREE.DirectionalLight(0xfff0d4,2.1);sun.position.set(-28,48,25);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-45;sun.shadow.camera.right=45;sun.shadow.camera.top=45;sun.shadow.camera.bottom=-45;scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xdceaff,0x536044,1.15));
+scene.add(new THREE.AmbientLight(0x8995a2,.32));
+const sun=new THREE.DirectionalLight(0xffe6c2,1.65);sun.position.set(-28,48,25);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-45;sun.shadow.camera.right=45;sun.shadow.camera.top=45;sun.shadow.camera.bottom=-45;scene.add(sun);
+const moonFill=new THREE.DirectionalLight(0x9eb8df,.42);moonFill.position.set(22,18,-28);scene.add(moonFill);
 
 const defs=[
  ['grass','Трава','🟩',0x6aa84f],['dirt','Земля','🟫',0x936345],['stone','Камень','🪨',0x92999d],
@@ -273,44 +276,50 @@ $('distance-setting').oninput=e=>{RADIUS=Number(e.target.value);$('distance-valu
 $('quality-setting').onchange=e=>{const q=quality[e.target.value];renderer.setPixelRatio(Math.min(devicePixelRatio,q.ratio));renderer.shadowMap.enabled=q.shadows;sun.castShadow=q.shadows;renderer.shadowMap.needsUpdate=true;renderer.setSize(innerWidth,innerHeight)};
 $('fps-setting').onchange=e=>{showFps=e.target.checked;if(!showFps)$('fps-counter').textContent=''};
 
-// A brief, distant humanoid apparition: purely visual, never collides with the player.
+// Organic humanoid apparition, built from smooth tapered meshes rather than cubes.
 const apparition=new THREE.Group();apparition.visible=false;scene.add(apparition);
-const apparitionMaterials=[];
-const shadowMat=new THREE.MeshLambertMaterial({color:0x101713,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false});
-apparitionMaterials.push(shadowMat);
-function shadowPart(geometry,x,y,z,sx=1,sy=1,sz=1){
- const mesh=new THREE.Mesh(geometry,shadowMat);mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);mesh.castShadow=false;mesh.receiveShadow=false;apparition.add(mesh);return mesh;
+const shadowMat=new THREE.MeshStandardMaterial({color:0x101714,roughness:1,metalness:0,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false});
+function apparitionMesh(geometry,position,scale=[1,1,1]){
+ const mesh=new THREE.Mesh(geometry,shadowMat);mesh.position.set(...position);mesh.scale.set(...scale);mesh.castShadow=false;mesh.receiveShadow=false;apparition.add(mesh);return mesh;
 }
-shadowPart(new THREE.CapsuleGeometry(.22,.82,3,5),0,1.12,0,.72,1.15,.58);
-shadowPart(new THREE.SphereGeometry(.19,7,6),0,1.83,0,.82,1.2,.82);
-for(const side of [-1,1]){
- const arm=shadowPart(new THREE.CapsuleGeometry(.075,.72,2,4),side*.29,1.2,0,1,1,1);arm.rotation.z=side*-.12;
- const leg=shadowPart(new THREE.CapsuleGeometry(.09,.72,2,4),side*.12,.38,0,1,1,1);leg.rotation.z=side*.035;
+function taperedLimb(a,b,r1,r2){
+ const from=new THREE.Vector3(...a),to=new THREE.Vector3(...b),delta=to.clone().sub(from);
+ const mesh=apparitionMesh(new THREE.CylinderGeometry(r2,r1,delta.length(),10,2),from.clone().add(to).multiplyScalar(.5).toArray());
+ mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
+ apparitionMesh(new THREE.SphereGeometry(r1,10,8),a);
+ apparitionMesh(new THREE.SphereGeometry(r2,10,8),b);
 }
+apparitionMesh(new THREE.SphereGeometry(.22,14,10),[0,1.84,0],[.72,1.18,.72]);
+apparitionMesh(new THREE.CylinderGeometry(.16,.27,.68,14,3),[0,1.23,0],[1,1,.82]);
+apparitionMesh(new THREE.SphereGeometry(.25,14,10),[0,1.48,0],[1.12,.72,.78]);
+apparitionMesh(new THREE.SphereGeometry(.16,12,9),[0,.86,0],[1.05,.9,.8]);
+taperedLimb([-.22,1.48,0],[-.34,1.08,.015],.105,.075);
+taperedLimb([-.34,1.08,.015],[-.39,.56,.08],.075,.045);
+taperedLimb([.22,1.48,0],[.34,1.08,-.015],.105,.075);
+taperedLimb([.34,1.08,-.015],[.39,.56,.08],.075,.045);
+taperedLimb([-.12,.82,0],[-.15,.42,.015],.13,.095);
+taperedLimb([-.15,.42,.015],[-.18,.07,.08],.095,.065);
+taperedLimb([.12,.82,0],[.15,.42,-.015],.13,.095);
+taperedLimb([.15,.42,-.015],[.18,.07,.08],.095,.065);
 let apparitionTimer=9,apparitionAge=0,apparitionDuration=0,apparitionActive=false;
 function triggerApparition(){
- const angle=yaw+(Math.random()-.5)*.72;
- const distance=13+Math.random()*8;
+ const angle=yaw+(Math.random()-.5)*.72,distance=13+Math.random()*8;
  const x=player.x-Math.sin(angle)*distance,z=player.z-Math.cos(angle)*distance;
  const ground=heightAt(Math.floor(x),Math.floor(z));
  apparition.position.set(x,ground+.02,z);
  apparition.lookAt(camera.position.x,ground+1,camera.position.z);
  apparition.rotation.x=0;
- apparitionAge=0;apparitionDuration=.48+Math.random()*.22;apparitionActive=true;apparition.visible=true;
+ apparitionAge=0;apparitionDuration=.62+Math.random()*.28;apparitionActive=true;apparition.visible=true;
 }
 function updateApparition(dt){
  if(!gameStarted||paused){if(apparitionActive){apparitionActive=false;apparition.visible=false;shadowMat.opacity=0}return}
- if(!apparitionActive){
-  apparitionTimer-=dt;
-  if(apparitionTimer<=0){triggerApparition();apparitionTimer=19+Math.random()*19}
-  return;
- }
+ if(!apparitionActive){apparitionTimer-=dt;if(apparitionTimer<=0){triggerApparition();apparitionTimer=19+Math.random()*19}return}
  apparitionAge+=dt;
- const fadeIn=Math.min(1,apparitionAge/.12),fadeOut=Math.min(1,(apparitionDuration-apparitionAge)/.22);
- shadowMat.opacity=.78*Math.max(0,Math.min(fadeIn,fadeOut));
+ const fadeIn=Math.min(1,apparitionAge/.14),fadeOut=Math.min(1,(apparitionDuration-apparitionAge)/.25);
+ shadowMat.opacity=.86*Math.max(0,Math.min(fadeIn,fadeOut));
  if(apparitionAge>=apparitionDuration){apparitionActive=false;apparition.visible=false;shadowMat.opacity=0}
 }
 const clock=new THREE.Clock();let elapsed=0,lastPlayerChunkX=NaN,lastPlayerChunkZ=NaN;
-function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;processChunkQueue();updateMining(dt);updateAnimals(dt,elapsed);updateApparition(dt);fpsFrames++;fpsTime+=dt;if(fpsTime>=.5){document.querySelector('#fps-counter').textContent=showFps?Math.round(fpsFrames/fpsTime)+' FPS':'';fpsFrames=0;fpsTime=0}const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));const dir=forward.multiplyScalar(gameStarted&&!paused?-move.y:0).add(right.multiplyScalar(gameStarted&&!paused?move.x:0));if(dir.lengthSq()>0){dir.normalize();const speed=mode==='creative'?8:5;const nx=player.x+dir.x*speed*dt,nz=player.z+dir.z*speed*dt;if(mode==='creative'){player.x=nx;player.z=nz}else{if(!collides(nx,player.y,player.z))player.x=nx;if(!collides(player.x,player.y,nz))player.z=nz}}if(gameStarted&&!paused&&mode==='creative'&&move.y<-.1)player.y+=dt*3;else if(gameStarted&&!paused){velY-=19*dt;const nextY=player.y+velY*dt;if(velY<=0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else if(velY>0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else{if(velY<0){player.y=Math.floor(nextY)+1;onGround=true}else{player.y=Math.ceil(nextY)-1.75;onGround=false}velY=0}}eye();const currentChunkX=Math.floor(player.x/CHUNK),currentChunkZ=Math.floor(player.z/CHUNK);if(currentChunkX!==lastPlayerChunkX||currentChunkZ!==lastPlayerChunkZ){lastPlayerChunkX=currentChunkX;lastPlayerChunkZ=currentChunkZ;loadAround()}sun.position.x=-25+Math.sin(elapsed*.025)*10;sun.intensity=1.8+Math.sin(elapsed*.025)*.25;if(Math.floor(elapsed/75)+1>day){day++;document.querySelector('#stats').textContent='❤ ♥ ♥ ♥ ♥　☀ День '+day}renderer.render(scene,camera)}
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;processChunkQueue();updateMining(dt);updateAnimals(dt,elapsed);updateApparition(dt);fpsFrames++;fpsTime+=dt;if(fpsTime>=.5){document.querySelector('#fps-counter').textContent=showFps?Math.round(fpsFrames/fpsTime)+' FPS':'';fpsFrames=0;fpsTime=0}const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));const dir=forward.multiplyScalar(gameStarted&&!paused?-move.y:0).add(right.multiplyScalar(gameStarted&&!paused?move.x:0));if(dir.lengthSq()>0){dir.normalize();const speed=mode==='creative'?8:5;const nx=player.x+dir.x*speed*dt,nz=player.z+dir.z*speed*dt;if(mode==='creative'){player.x=nx;player.z=nz}else{if(!collides(nx,player.y,player.z))player.x=nx;if(!collides(player.x,player.y,nz))player.z=nz}}if(gameStarted&&!paused&&mode==='creative'&&move.y<-.1)player.y+=dt*3;else if(gameStarted&&!paused){velY-=19*dt;const nextY=player.y+velY*dt;if(velY<=0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else if(velY>0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else{if(velY<0){player.y=Math.floor(nextY)+1;onGround=true}else{player.y=Math.ceil(nextY)-1.75;onGround=false}velY=0}}eye();const currentChunkX=Math.floor(player.x/CHUNK),currentChunkZ=Math.floor(player.z/CHUNK);if(currentChunkX!==lastPlayerChunkX||currentChunkZ!==lastPlayerChunkZ){lastPlayerChunkX=currentChunkX;lastPlayerChunkZ=currentChunkZ;loadAround()}sun.position.x=-25+Math.sin(elapsed*.025)*10;sun.intensity=1.45+Math.sin(elapsed*.025)*.18;moonFill.intensity=.34+Math.sin(elapsed*.025)*.06;if(Math.floor(elapsed/75)+1>day){day++;document.querySelector('#stats').textContent='❤ ♥ ♥ ♥ ♥　☀ День '+day}renderer.render(scene,camera)}
 loop();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5))});
 document.querySelector('#loading').remove();
