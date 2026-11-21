@@ -33,9 +33,11 @@ const defs=[
 ];
 const names=Object.fromEntries(defs.map(d=>[d[0],d[1]]));
 function texture(type,base){
- // Original 16x16 pixel-art tiles inspired by classic voxel games.
- const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');
+ // Detailed 64x64 seamless pixel textures: earthy dirt grain and layered wood bark.
+ const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');
  const hex=n=>'#'+n.toString(16).padStart(6,'0');
+ let seed=type.split('').reduce((a,ch)=>Math.imul(a^ch.charCodeAt(0),16777619),2166136261)>>>0;
+ const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
  const palettes={
   grass:['#57913d','#68a947','#78b94d','#477f35','#8ac85a'],
   dirt:['#765038','#865b3d','#966747','#68452f','#a47750'],
@@ -51,23 +53,33 @@ function texture(type,base){
   iron:['#777d80','#b58f79','#d2b5a2','#656b6e','#e0c4b0'],gold:['#777d80','#e2b83f','#f5d66b','#656b6e','#ffe99a'],diamond:['#777d80','#55cbd2','#91f1ed','#656b6e','#c2ffff'],snow:['#dce8ed','#edf6fa','#ffffff','#b7cbd5','#f8ffff']
  };
  const p=palettes[type]||palettes.grass;
- g.fillStyle=p[0];g.fillRect(0,0,16,16);
- // Structured, block-specific pixel patterns rather than random noise.
- for(let y=0;y<16;y++)for(let x=0;x<16;x++){
-  let idx=0;
-  if(type==='grass')idx=(x*7+y*11)%13===0?3:((x*3+y*5)%9===0?2:((x+y)%4===0?1:0));
-  else if(type==='dirt')idx=(x*3+y*5)%17===0?4:((x+y*2)%7===0?1:0);
-  else if(type==='stone'||type==='coal')idx=(x*5+y*3)%19===0?4:((x*2+y*7)%9===0?1:0);
-  else if(type==='wood')idx=x%5===0?3:(x%4===1?2:((y%6===0)?1:0));
-  else if(type==='planks')idx=y%5===0?3:((x+y)%11===0?2:0);
-  else if(type==='leaves')idx=(x*7+y*3)%8===0?4:((x+y)%3===0?1:0);
-  else if(type==='sand')idx=(x*11+y*5)%23===0?3:((x+y*2)%9===0?2:0);
-  else if(type==='brick')idx=(y%4===0||((x+(Math.floor(y/4)%2)*4)%8===0))?3:((x+y)%13===0?4:1);
-  else if(type==='glass')idx=(x===2&&y>2&&y<13)||(y===12&&x>2&&x<7)?2:((x===0||y===0)?3:0);
-  else if(type==='flower')idx=y>8?((x+y)%4===0?1:0):((x===7||x===8||y===5||y===6)?2:((x===6&&y===4)?4:0));
-  if(idx){g.fillStyle=p[idx];g.fillRect(x,y,1,1)}
+ g.fillStyle=p[0];g.fillRect(0,0,64,64);
+ // Fine-scale deterministic texture detail, matching the supplied bark and soil references.
+ if(type==='wood'){
+  for(let x=0;x<64;x++){
+   const wave=Math.sin(x*.42)*2+Math.sin(x*.13)*3;
+   const groove=rand()<.22;
+   g.fillStyle=groove?p[3]:(rand()<.5?p[1]:p[0]);
+   g.fillRect(x,0,1,64);
+   if(groove){g.fillStyle=p[2];g.fillRect(Math.max(0,x+1),0,1,64)}
+   if(x%9===0){g.fillStyle=p[4];g.globalAlpha=.24;g.fillRect(x+wave,0,1,64);g.globalAlpha=1}
+  }
+  for(let i=0;i<95;i++){const x=rand()*64,y=rand()*64;g.fillStyle=rand()<.5?p[3]:p[4];g.globalAlpha=.28;g.fillRect(x,y,1+rand()*2,2+rand()*8)}g.globalAlpha=1;
+ }else if(type==='dirt'||type==='grass'||type==='stone'||type==='coal'||type==='sand'){
+  for(let y=0;y<64;y+=2)for(let x=0;x<64;x+=2){
+   const n=rand(),idx=n<.13?3:n<.34?1:n<.42?4:0;
+   g.fillStyle=p[idx];g.globalAlpha=.32+rand()*.48;g.fillRect(x,y,1+Math.floor(rand()*3),1+Math.floor(rand()*3));
+  }
+  if(type==='dirt'){
+   for(let i=0;i<75;i++){const x=rand()*64,y=rand()*64;g.fillStyle=rand()<.5?p[3]:p[4];g.globalAlpha=.45;g.fillRect(x,y,1+rand()*3,1+rand()*3)}
+  }
+  g.globalAlpha=1;
+ }else{
+  for(let y=0;y<64;y++)for(let x=0;x<64;x++){
+   const n=rand();if(n<.12){g.fillStyle=p[3];g.globalAlpha=.35;g.fillRect(x,y,1,1)}else if(n>.88){g.fillStyle=p[2];g.globalAlpha=.4;g.fillRect(x,y,1,1)}
+  }g.globalAlpha=1;
  }
- const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;t.generateMipmaps=false;return t;
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.magFilter=THREE.LinearFilter;t.minFilter=THREE.LinearMipmapLinearFilter;t.generateMipmaps=true;t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;
 }
 const materials={};
 for(const [id,, ,color] of defs){const tex=texture(id,color);materials[id]=new THREE.MeshStandardMaterial({map:tex,roughness:id==='glass'?.28:.92,metalness:id==='iron'||id==='gold'||id==='diamond'?.12:0,transparent:id==='glass',opacity:id==='glass'?.58:1})}
