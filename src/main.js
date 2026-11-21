@@ -10,14 +10,14 @@ scene.background=new THREE.Color(0x87918f);
 scene.fog=new THREE.Fog(0x87918f,17,72);
 const camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.08,150);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(devicePixelRatio);renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.18;
 root.appendChild(renderer.domElement);
 // Balanced natural light: warm sun, cool sky fill, and restrained ambient light.
 scene.add(new THREE.HemisphereLight(0xdceaff,0x46513d,.9));
 scene.add(new THREE.AmbientLight(0x8995a2,.2));
-const sun=new THREE.DirectionalLight(0xffe4bd,2.0);sun.position.set(-28,48,25);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-36;sun.shadow.camera.right=36;sun.shadow.camera.top=36;sun.shadow.camera.bottom=-36;sun.shadow.bias=-.00035;sun.shadow.normalBias=.025;scene.add(sun);
+const sun=new THREE.DirectionalLight(0xffe4bd,2.0);sun.position.set(-28,48,25);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);sun.shadow.camera.left=-48;sun.shadow.camera.right=48;sun.shadow.camera.top=48;sun.shadow.camera.bottom=-48;sun.shadow.bias=-.00035;sun.shadow.normalBias=.025;scene.add(sun);
 const moonFill=new THREE.DirectionalLight(0x9eb8df,.3);moonFill.position.set(22,18,-28);scene.add(moonFill);
 
 const defs=[
@@ -114,7 +114,7 @@ function rebuildChunk(cx,cz){
   }
  }
  const group=[],dummy=new THREE.Object3D();
- for(const [type,coords] of Object.entries(buckets)){const mesh=new THREE.InstancedMesh(cube,materials[type]||materials.grass,coords.length);mesh.userData.coords=coords;coords.forEach((p,i)=>{dummy.position.set(p[0]+.5,p[1]+.5,p[2]+.5);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix)});mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=type==='wood'||type==='leaves';mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);group.push(mesh)}
+ for(const [type,coords] of Object.entries(buckets)){const mesh=new THREE.InstancedMesh(cube,materials[type]||materials.grass,coords.length);mesh.userData.coords=coords;coords.forEach((p,i)=>{dummy.position.set(p[0]+.5,p[1]+.5,p[2]+.5);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix)});mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);group.push(mesh)}
  chunkMeshes.set(ck,group);loadedChunks.add(ck);
 }
 function solidAt(x,y,z){const k=key(x,y,z);return blocks.has(k)?blocks.get(k)!==null:generatedBlock(x,y,z)!==null}
@@ -226,7 +226,7 @@ const hand=new THREE.Group();camera.add(hand);hand.position.set(.42,-.38,-.62);
 const sleeve=new THREE.Mesh(new THREE.BoxGeometry(.18,.25,.22),new THREE.MeshLambertMaterial({color:0x3477ad}));sleeve.position.set(0,-.12,0);hand.add(sleeve);
 const held=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),materials.grass);held.position.set(0,.02,-.17);hand.add(held);camera.add(hand);scene.add(camera);
 let yaw=0,pitch=-.12,velY=0,onGround=false,move={x:0,y:0},lookPointer=null,lastX=0,lastY=0,mode='survival',selected='grass',day=1;
-let gameStarted=false,paused=false,sensitivity=.004,showFps=false,fpsFrames=0,fpsTime=0;const quality={low:{ratio:.8,shadows:false},medium:{ratio:1.15,shadows:true},high:{ratio:1.5,shadows:true}};
+let gameStarted=false,paused=false,sensitivity=.004,showFps=false,fpsFrames=0,fpsTime=0;const quality={low:{ratio:devicePixelRatio,shadows:true},medium:{ratio:devicePixelRatio,shadows:true},high:{ratio:devicePixelRatio,shadows:true}};
 const inventory={grass:32,dirt:24,stone:20,wood:16,leaves:12,sand:16,brick:12,glass:8,planks:0,coal:0,flower:0};
 const hotbarIds=['grass','dirt','stone','wood','leaves','sand','brick','glass','coal','iron','gold','diamond','snow'];
 const ray=new THREE.Raycaster();ray.far=6;
@@ -274,7 +274,7 @@ $('back-menu').onclick=()=>{gameStarted=false;paused=false;document.body.classLi
 $('fov-setting').oninput=e=>{camera.fov=Number(e.target.value);camera.updateProjectionMatrix();$('fov-value').textContent=e.target.value+'°'};
 $('sens-setting').oninput=e=>{sensitivity=Number(e.target.value)/1000;$('sens-value').textContent=sensitivity.toFixed(3)};
 $('distance-setting').oninput=e=>{RADIUS=Number(e.target.value);$('distance-value').textContent=RADIUS+' чанка';loadAround()};
-$('quality-setting').onchange=e=>{const q=quality[e.target.value];renderer.setPixelRatio(Math.min(devicePixelRatio,q.ratio));renderer.shadowMap.enabled=q.shadows;sun.castShadow=q.shadows;renderer.shadowMap.needsUpdate=true;renderer.setSize(innerWidth,innerHeight)};
+$('quality-setting').onchange=e=>{const q=quality[e.target.value];renderer.setPixelRatio(devicePixelRatio);renderer.shadowMap.enabled=q.shadows;sun.castShadow=q.shadows;renderer.shadowMap.needsUpdate=true;renderer.setSize(innerWidth,innerHeight)};
 $('fps-setting').onchange=e=>{showFps=e.target.checked;if(!showFps)$('fps-counter').textContent=''};
 
 // Organic humanoid apparition, built from smooth tapered meshes rather than cubes.
@@ -322,5 +322,5 @@ function updateApparition(dt){
 }
 const clock=new THREE.Clock();let elapsed=0,lastPlayerChunkX=NaN,lastPlayerChunkZ=NaN;
 function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;processChunkQueue();updateMining(dt);updateAnimals(dt,elapsed);updateApparition(dt);fpsFrames++;fpsTime+=dt;if(fpsTime>=.5){document.querySelector('#fps-counter').textContent=showFps?Math.round(fpsFrames/fpsTime)+' FPS':'';fpsFrames=0;fpsTime=0}const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));const dir=forward.multiplyScalar(gameStarted&&!paused?-move.y:0).add(right.multiplyScalar(gameStarted&&!paused?move.x:0));if(dir.lengthSq()>0){dir.normalize();const speed=mode==='creative'?8:5;const nx=player.x+dir.x*speed*dt,nz=player.z+dir.z*speed*dt;if(mode==='creative'){player.x=nx;player.z=nz}else{if(!collides(nx,player.y,player.z))player.x=nx;if(!collides(player.x,player.y,nz))player.z=nz}}if(gameStarted&&!paused&&mode==='creative'&&move.y<-.1)player.y+=dt*3;else if(gameStarted&&!paused){velY-=19*dt;const nextY=player.y+velY*dt;if(velY<=0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else if(velY>0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else{if(velY<0){player.y=Math.floor(nextY)+1;onGround=true}else{player.y=Math.ceil(nextY)-1.75;onGround=false}velY=0}}eye();const currentChunkX=Math.floor(player.x/CHUNK),currentChunkZ=Math.floor(player.z/CHUNK);if(currentChunkX!==lastPlayerChunkX||currentChunkZ!==lastPlayerChunkZ){lastPlayerChunkX=currentChunkX;lastPlayerChunkZ=currentChunkZ;loadAround()}sun.position.x=-25+Math.sin(elapsed*.025)*10;sun.intensity=1.45+Math.sin(elapsed*.025)*.18;moonFill.intensity=.34+Math.sin(elapsed*.025)*.06;if(Math.floor(elapsed/75)+1>day){day++;document.querySelector('#stats').textContent='❤ ♥ ♥ ♥ ♥　☀ День '+day}renderer.render(scene,camera)}
-loop();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.25))});
+loop();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(devicePixelRatio)});
 document.querySelector('#loading').remove();
