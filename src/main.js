@@ -84,6 +84,7 @@ function texture(type,base){
 const materials={};
 for(const [id,, ,color] of defs){const tex=texture(id,color);materials[id]=new THREE.MeshStandardMaterial({map:tex,roughness:id==='glass'?.28:.92,metalness:id==='iron'||id==='gold'||id==='diamond'?.12:0,transparent:id==='glass',opacity:id==='glass'?.58:1})}
 materials.flower=new THREE.MeshStandardMaterial({color:0xe6a6d0,roughness:.78});
+materials.water=new THREE.MeshStandardMaterial({color:0x4bafd0,roughness:.18,metalness:.08,transparent:true,opacity:.68,depthWrite:false});
 const cube=new THREE.BoxGeometry(1,1,1),blocks=new Map(),chunkMeshes=new Map();
 const key=(x,y,z)=>x+','+y+','+z,CHUNK=16,loadedChunks=new Set(),chunkQueue=[],queuedChunks=new Set();let RADIUS=3;
 function chunkKey(x,z){return x+','+z}
@@ -104,13 +105,22 @@ function rebuildChunk(cx,cz){
  const heightCache=new Map(),treeBlocks=new Map(),voxelCache=new Map();
  const columnHeight=(x,z)=>{const k=x+','+z;if(!heightCache.has(k))heightCache.set(k,heightAt(x,z));return heightCache.get(k)};
  // Build tree voxels once per chunk (including a 2-block border), not once per voxel.
- for(let tx=minX-2;tx<=maxX+2;tx++)for(let tz=minZ-2;tz<=maxZ+2;tz++){
-  const th=columnHeight(tx,tz);if(hash(tx+193,tz-71)<=.982||th<=2)continue;
-  for(let y=th+1;y<=th+5;y++)for(let x=Math.max(minX-1,tx-2);x<=Math.min(maxX+1,tx+2);x++)for(let z=Math.max(minZ-1,tz-2);z<=Math.min(maxZ+1,tz+2);z++){
-   const dx=x-tx,dz=z-tz;
-   if(dx===0&&dz===0&&y<=th+4)treeBlocks.set(key(x,y,z),'wood');
-   // Compact canopy: fewer leaf blocks, with a small crown around the upper trunk.
-   else if(Math.abs(dx)+Math.abs(dz)+Math.abs(y-th-4)<=2.25&&y>=th+2)treeBlocks.set(key(x,y,z),'leaves');
+ for(let tx=minX-4;tx<=maxX+4;tx++)for(let tz=minZ-4;tz<=maxZ+4;tz++){
+  const th=columnHeight(tx,tz),biome=terrain.biomeAt(tx,tz),roll=hash(tx+193,tz-71);
+  // Forests and jungles are dense; plains have occasional trees; deserts and high peaks stay bare.
+  const density=biome===BIOMES.FOREST?.972:biome===BIOMES.JUNGLE?.945:biome===BIOMES.SWAMP?.965:biome===BIOMES.PLAINS?.994:biome===BIOMES.SNOW?.988:.9999;
+  if(roll<=density||th<=2||biome===BIOMES.DESERT||biome===BIOMES.MOUNTAINS||biome===BIOMES.OCEAN)continue;
+  const variant=hash(tx+811,tz-337),tall=biome===BIOMES.JUNGLE?7:biome===BIOMES.SWAMP?5:variant>.72?6:4;
+  const radius=biome===BIOMES.JUNGLE?3:variant>.72?2:1.8;
+  for(let y=th+1;y<=th+tall+2;y++)for(let x=Math.max(minX-1,tx-3);x<=Math.min(maxX+1,tx+3);x++)for(let z=Math.max(minZ-1,tz-3);z<=Math.min(maxZ+1,tz+3);z++){
+   const dx=x-tx,dz=z-tz,dy=y-(th+tall);
+   if(dx===0&&dz===0&&y<=th+tall)treeBlocks.set(key(x,y,z),'wood');
+   else{
+    const normalized=(dx*dx+dz*dz)/(radius*radius)+(dy*dy)/(biome===BIOMES.JUNGLE?8:5);
+    const conifer=biome===BIOMES.SNOW||variant<.18;
+    const allowed=conifer?Math.abs(dx)+Math.abs(dz)<=Math.max(0,(tall+2-(y-th))*.72):normalized<=1.2;
+    if(allowed&&y>=th+tall-2)treeBlocks.set(key(x,y,z),'leaves');
+   }
   }
  }
  const sample=(x,y,z)=>{
@@ -131,8 +141,8 @@ function rebuildChunk(cx,cz){
   }
  }
  const group=[],dummy=new THREE.Object3D();
- const foliageGeometry=new THREE.IcosahedronGeometry(.54,1);
- const trunkGeometry=new THREE.CylinderGeometry(.34,.43,1,8,1);
+ const foliageGeometry=new THREE.IcosahedronGeometry(.72,1);
+ const trunkGeometry=new THREE.CylinderGeometry(.25,.34,1,7,1);
  for(const [type,coords] of Object.entries(buckets)){
   // Rounded low-poly foliage and tapered trunks replace cube-shaped tree parts.
   const geometry=type==='leaves'?foliageGeometry:type==='wood'?trunkGeometry:cube;
@@ -140,13 +150,21 @@ function rebuildChunk(cx,cz){
   if(['grass','leaves','dirt'].includes(type))mesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(coords.length*3),3);
   coords.forEach((p,i)=>{
    dummy.position.set(p[0]+.5,p[1]+.5,p[2]+.5);
-   if(type==='leaves'){const s=.78+hash(p[0],p[2])*.16;dummy.scale.set(s,.82+hash(p[2],p[0])*.14,s);dummy.rotation.set(0,hash(p[0]+4,p[2]+7)*.35,0)}
+   if(type==='leaves'){const s=.92+hash(p[0],p[2])*.16;dummy.scale.set(s,.88+hash(p[2],p[0])*.12,s);dummy.rotation.set(0,hash(p[0]+4,p[2]+7)*.22,0)}
    else{dummy.scale.set(1,1,1);dummy.rotation.set(0,0,0)}
    dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
    if(mesh.instanceColor){const v=hash(p[0]+31,p[2]-17),color=new THREE.Color();color.setHSL(type==='leaves'?.31:.27,type==='leaves'?.48:.42,.92+v*.08);mesh.setColorAt(i,color)}
   });
   mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
   mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);group.push(mesh)
+ }
+ // Add calm water planes in low terrain basins.
+ const waterCoords=[];
+ for(let x=minX;x<=maxX;x++)for(let z=minZ;z<=maxZ;z++)if(columnHeight(x,z)<6)waterCoords.push([x+.5,6.02,z+.5]);
+ if(waterCoords.length){
+  const water=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),materials.water,waterCoords.length),wm=new THREE.Object3D();
+  waterCoords.forEach((p,i)=>{wm.position.set(p[0],p[1],p[2]);wm.rotation.x=-Math.PI/2;wm.updateMatrix();water.setMatrixAt(i,wm.matrix)});
+  water.instanceMatrix.needsUpdate=true;water.renderOrder=2;scene.add(water);group.push(water);
  }
  chunkMeshes.set(ck,group);loadedChunks.add(ck);
 }
@@ -238,7 +256,7 @@ function loadAnimalsAround(px,pz){
   const animals=[],plants=[],r=hash(cx+902,cz-411);
   if(cx===0&&cz===0){const starters=[['pig',5,5],['cow',10,6],['sheep',7,12]];for(const [type,x,z] of starters)animals.push(makeAnimal(type,x,z));}
   else if(r>.58){const x=cx*CHUNK+3+Math.floor(hash(cx*7,cz*11)*10),z=cz*CHUNK+3+Math.floor(hash(cx*13,cz*5)*10);const type=['pig','cow','sheep'][Math.floor(hash(cx,cz)*3)];animals.push(makeAnimal(type,x,z));}
-  for(let n=0;n<4;n++){const x=cx*CHUNK+hash(cx*31+n,cz*17)*CHUNK,z=cz*CHUNK+hash(cx*19,cz*29+n)*CHUNK;if(hash(Math.floor(x*3),Math.floor(z*3))<.78||heightAt(Math.floor(x),Math.floor(z))<=2)continue;const plant=new THREE.Group();plant.position.set(x,heightAt(Math.floor(x),Math.floor(z))+.03,z);const stem=new THREE.Mesh(new THREE.CylinderGeometry(.025,.035,.32,5),new THREE.MeshLambertMaterial({color:0x43843b}));stem.position.y=.16;plant.add(stem);const flower=new THREE.Mesh(new THREE.DodecahedronGeometry(.13,0),new THREE.MeshLambertMaterial({color:hash(Math.floor(x*9),Math.floor(z*9))>.5?0xf4d45e:0xf0b6d0}));flower.position.y=.34;plant.add(flower);scene.add(plant);plants.push(plant)}
+  for(let n=0;n<12;n++){const x=cx*CHUNK+hash(cx*31+n,cz*17)*CHUNK,z=cz*CHUNK+hash(cx*19,cz*29+n)*CHUNK,bx=Math.floor(x),bz=Math.floor(z),biome=terrain.biomeAt(bx,bz),h=heightAt(bx,bz);if(hash(bx*3,bz*3)<(biome===BIOMES.FOREST?.48:biome===BIOMES.JUNGLE?.58:.82)||h<=2||biome===BIOMES.DESERT||biome===BIOMES.MOUNTAINS)continue;const plant=new THREE.Group();plant.position.set(x,h+.03,z);const stem=new THREE.Mesh(new THREE.CylinderGeometry(.018,.027,.3,5),new THREE.MeshLambertMaterial({color:0x43843b}));stem.position.y=.15;plant.add(stem);const palette=[0xf4d45e,0xf0b6d0,0xffffff,0xb9a4f2,0xe98b55],flower=new THREE.Mesh(new THREE.DodecahedronGeometry(.105+hash(bx+5,bz+7)*.045,0),new THREE.MeshLambertMaterial({color:palette[Math.floor(hash(bx+9,bz+3)*palette.length)]}));flower.position.y=.32;plant.add(flower);scene.add(plant);plants.push(plant)}
   animalChunks.set(ck,animals);plantChunks.set(ck,plants)
  }
  for(const ck of [...animalChunks.keys()]){const [cx,cz]=ck.split(',').map(Number);if(Math.abs(cx-px)>RADIUS+1||Math.abs(cz-pz)>RADIUS+1){for(const a of animalChunks.get(ck)){scene.remove(a);const i=animalList.indexOf(a);if(i>=0)animalList.splice(i,1)}for(const p of plantChunks.get(ck)||[])scene.remove(p);animalChunks.delete(ck);plantChunks.delete(ck)}}
