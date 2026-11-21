@@ -89,7 +89,8 @@ function rebuildChunk(cx,cz){
   for(let y=th+1;y<=th+6;y++)for(let x=Math.max(minX-1,tx-2);x<=Math.min(maxX+1,tx+2);x++)for(let z=Math.max(minZ-1,tz-2);z<=Math.min(maxZ+1,tz+2);z++){
    const dx=x-tx,dz=z-tz;
    if(dx===0&&dz===0&&y<=th+4)treeBlocks.set(key(x,y,z),'wood');
-   else if(Math.abs(dx)+Math.abs(dz)+Math.abs(y-th-4)<=5&&!(dx===0&&dz===0&&y<th+5))treeBlocks.set(key(x,y,z),'leaves');
+   // Compact canopy: fewer leaf blocks, with a small crown around the upper trunk.
+   else if(Math.abs(dx)+Math.abs(dz)+Math.abs(y-th-4)<=3)treeBlocks.set(key(x,y,z),'leaves');
   }
  }
  const sample=(x,y,z)=>{
