@@ -71,18 +71,43 @@ function hash(x,z){let n=(Math.imul(x,374761393)+Math.imul(z,668265263))|0;n=Mat
 const terrain=new TerrainGenerator(20261120);
 function heightAt(x,z){return terrain.heightAt(x,z)}
 function treeAt(x,z){return hash(x+193,z-71)>.974&&heightAt(x,z)>2}
-function generatedBlock(x,y,z){
- const h=heightAt(x,z);if(y<=h){const block=terrain.blockAt(x,y,z);if(block)return block;return null}
- for(let tx=x-2;tx<=x+2;tx++)for(let tz=z-2;tz<=z+2;tz++)if(treeAt(tx,tz)){const th=heightAt(tx,tz),dx=x-tx,dz=z-tz;if(dx===0&&dz===0&&y>th&&y<=th+4)return 'wood';if(y>=th+3&&y<=th+6&&Math.abs(dx)+Math.abs(dz)+Math.abs(y-th-4)<=5&&!(dx===0&&dz===0&&y<th+5))return 'leaves'}
- return null;
+function generatedBlock(x,y,z,treeBlocks=null,heightCache=null){
+ const columnKey=x+','+z;
+ let h=heightCache?.get(columnKey);
+ if(h===undefined){h=heightAt(x,z);heightCache?.set(columnKey,h)}
+ if(y<=h)return terrain.blockAt(x,y,z)||null;
+ return treeBlocks?.get(key(x,y,z))||null;
 }
 function rebuildChunk(cx,cz){
  const ck=chunkKey(cx,cz);for(const m of chunkMeshes.get(ck)||[])scene.remove(m);
- const buckets={},minX=cx*CHUNK,minZ=cz*CHUNK;
- for(let x=minX;x<minX+CHUNK;x++)for(let z=minZ;z<minZ+CHUNK;z++)for(let y=-24;y<=heightAt(x,z)+6;y++){
-  const k=key(x,y,z),type=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!type)continue;
-  let exposed=false;for(const [dx,dy,dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){const nk=key(x+dx,y+dy,z+dz),neighbor=blocks.has(nk)?blocks.get(nk):generatedBlock(x+dx,y+dy,z+dz);if(!neighbor||neighbor==='glass'||type==='glass'){exposed=true;break}}
-  if(exposed)(buckets[type]??=[]).push([x,y,z]);
+ const buckets={},minX=cx*CHUNK,minZ=cz*CHUNK,maxX=minX+CHUNK-1,maxZ=minZ+CHUNK-1;
+ const heightCache=new Map(),treeBlocks=new Map(),voxelCache=new Map();
+ const columnHeight=(x,z)=>{const k=x+','+z;if(!heightCache.has(k))heightCache.set(k,heightAt(x,z));return heightCache.get(k)};
+ // Build tree voxels once per chunk (including a 2-block border), not once per voxel.
+ for(let tx=minX-2;tx<=maxX+2;tx++)for(let tz=minZ-2;tz<=maxZ+2;tz++){
+  const th=columnHeight(tx,tz);if(hash(tx+193,tz-71)<=.974||th<=2)continue;
+  for(let y=th+1;y<=th+6;y++)for(let x=Math.max(minX-1,tx-2);x<=Math.min(maxX+1,tx+2);x++)for(let z=Math.max(minZ-1,tz-2);z<=Math.min(maxZ+1,tz+2);z++){
+   const dx=x-tx,dz=z-tz;
+   if(dx===0&&dz===0&&y<=th+4)treeBlocks.set(key(x,y,z),'wood');
+   else if(Math.abs(dx)+Math.abs(dz)+Math.abs(y-th-4)<=5&&!(dx===0&&dz===0&&y<th+5))treeBlocks.set(key(x,y,z),'leaves');
+  }
+ }
+ const sample=(x,y,z)=>{
+  const k=key(x,y,z);if(blocks.has(k))return blocks.get(k);
+  if(voxelCache.has(k))return voxelCache.get(k);
+  const value=generatedBlock(x,y,z,treeBlocks,heightCache);voxelCache.set(k,value);return value;
+ };
+ for(let x=minX;x<=maxX;x++)for(let z=minZ;z<=maxZ;z++){
+  const top=columnHeight(x,z)+6;
+  for(let y=-24;y<=top;y++){
+   const type=sample(x,y,z);if(!type)continue;
+   let exposed=false;
+   for(const [dx,dy,dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){
+    const neighbor=sample(x+dx,y+dy,z+dz);
+    if(!neighbor||neighbor==='glass'||type==='glass'){exposed=true;break}
+   }
+   if(exposed)(buckets[type]??=[]).push([x,y,z]);
+  }
  }
  const group=[],dummy=new THREE.Object3D();
  for(const [type,coords] of Object.entries(buckets)){const mesh=new THREE.InstancedMesh(cube,materials[type]||materials.grass,coords.length);mesh.userData.coords=coords;coords.forEach((p,i)=>{dummy.position.set(p[0]+.5,p[1]+.5,p[2]+.5);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix)});mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();scene.add(mesh);group.push(mesh)}
