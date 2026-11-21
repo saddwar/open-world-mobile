@@ -6,8 +6,8 @@ import { TerrainGenerator, BIOMES } from '../world/TerrainGenerator.js';
 const root=document.querySelector('#game');
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x9bcff0);
-scene.fog=new THREE.Fog(0x9bcff0,34,105);
+scene.background=new THREE.Color(0x657168);
+scene.fog=new THREE.Fog(0x657168,11,52);
 const camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.08,150);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));renderer.setSize(innerWidth,innerHeight);
@@ -273,7 +273,44 @@ $('distance-setting').oninput=e=>{RADIUS=Number(e.target.value);$('distance-valu
 $('quality-setting').onchange=e=>{const q=quality[e.target.value];renderer.setPixelRatio(Math.min(devicePixelRatio,q.ratio));renderer.shadowMap.enabled=q.shadows;sun.castShadow=q.shadows;renderer.shadowMap.needsUpdate=true;renderer.setSize(innerWidth,innerHeight)};
 $('fps-setting').onchange=e=>{showFps=e.target.checked;if(!showFps)$('fps-counter').textContent=''};
 
+// A brief, distant humanoid apparition: purely visual, never collides with the player.
+const apparition=new THREE.Group();apparition.visible=false;scene.add(apparition);
+const apparitionMaterials=[];
+const shadowMat=new THREE.MeshLambertMaterial({color:0x101713,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false});
+apparitionMaterials.push(shadowMat);
+function shadowPart(geometry,x,y,z,sx=1,sy=1,sz=1){
+ const mesh=new THREE.Mesh(geometry,shadowMat);mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);mesh.castShadow=false;mesh.receiveShadow=false;apparition.add(mesh);return mesh;
+}
+shadowPart(new THREE.CapsuleGeometry(.22,.82,3,5),0,1.12,0,.72,1.15,.58);
+shadowPart(new THREE.SphereGeometry(.19,7,6),0,1.83,0,.82,1.2,.82);
+for(const side of [-1,1]){
+ const arm=shadowPart(new THREE.CapsuleGeometry(.075,.72,2,4),side*.29,1.2,0,1,1,1);arm.rotation.z=side*-.12;
+ const leg=shadowPart(new THREE.CapsuleGeometry(.09,.72,2,4),side*.12,.38,0,1,1,1);leg.rotation.z=side*.035;
+}
+let apparitionTimer=9,apparitionAge=0,apparitionDuration=0,apparitionActive=false;
+function triggerApparition(){
+ const angle=yaw+(Math.random()-.5)*.72;
+ const distance=13+Math.random()*8;
+ const x=player.x-Math.sin(angle)*distance,z=player.z-Math.cos(angle)*distance;
+ const ground=heightAt(Math.floor(x),Math.floor(z));
+ apparition.position.set(x,ground+.02,z);
+ apparition.lookAt(camera.position.x,ground+1,camera.position.z);
+ apparition.rotation.x=0;
+ apparitionAge=0;apparitionDuration=.48+Math.random()*.22;apparitionActive=true;apparition.visible=true;
+}
+function updateApparition(dt){
+ if(!gameStarted||paused){if(apparitionActive){apparitionActive=false;apparition.visible=false;shadowMat.opacity=0}return}
+ if(!apparitionActive){
+  apparitionTimer-=dt;
+  if(apparitionTimer<=0){triggerApparition();apparitionTimer=19+Math.random()*19}
+  return;
+ }
+ apparitionAge+=dt;
+ const fadeIn=Math.min(1,apparitionAge/.12),fadeOut=Math.min(1,(apparitionDuration-apparitionAge)/.22);
+ shadowMat.opacity=.78*Math.max(0,Math.min(fadeIn,fadeOut));
+ if(apparitionAge>=apparitionDuration){apparitionActive=false;apparition.visible=false;shadowMat.opacity=0}
+}
 const clock=new THREE.Clock();let elapsed=0,lastPlayerChunkX=NaN,lastPlayerChunkZ=NaN;
-function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;processChunkQueue();updateMining(dt);updateAnimals(dt,elapsed);fpsFrames++;fpsTime+=dt;if(fpsTime>=.5){document.querySelector('#fps-counter').textContent=showFps?Math.round(fpsFrames/fpsTime)+' FPS':'';fpsFrames=0;fpsTime=0}const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));const dir=forward.multiplyScalar(gameStarted&&!paused?-move.y:0).add(right.multiplyScalar(gameStarted&&!paused?move.x:0));if(dir.lengthSq()>0){dir.normalize();const speed=mode==='creative'?8:5;const nx=player.x+dir.x*speed*dt,nz=player.z+dir.z*speed*dt;if(mode==='creative'){player.x=nx;player.z=nz}else{if(!collides(nx,player.y,player.z))player.x=nx;if(!collides(player.x,player.y,nz))player.z=nz}}if(gameStarted&&!paused&&mode==='creative'&&move.y<-.1)player.y+=dt*3;else if(gameStarted&&!paused){velY-=19*dt;const nextY=player.y+velY*dt;if(velY<=0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else if(velY>0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else{if(velY<0){player.y=Math.floor(nextY)+1;onGround=true}else{player.y=Math.ceil(nextY)-1.75;onGround=false}velY=0}}eye();const currentChunkX=Math.floor(player.x/CHUNK),currentChunkZ=Math.floor(player.z/CHUNK);if(currentChunkX!==lastPlayerChunkX||currentChunkZ!==lastPlayerChunkZ){lastPlayerChunkX=currentChunkX;lastPlayerChunkZ=currentChunkZ;loadAround()}sun.position.x=-25+Math.sin(elapsed*.025)*10;sun.intensity=1.8+Math.sin(elapsed*.025)*.25;if(Math.floor(elapsed/75)+1>day){day++;document.querySelector('#stats').textContent='❤ ♥ ♥ ♥ ♥　☀ День '+day}renderer.render(scene,camera)}
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;processChunkQueue();updateMining(dt);updateAnimals(dt,elapsed);updateApparition(dt);fpsFrames++;fpsTime+=dt;if(fpsTime>=.5){document.querySelector('#fps-counter').textContent=showFps?Math.round(fpsFrames/fpsTime)+' FPS':'';fpsFrames=0;fpsTime=0}const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));const dir=forward.multiplyScalar(gameStarted&&!paused?-move.y:0).add(right.multiplyScalar(gameStarted&&!paused?move.x:0));if(dir.lengthSq()>0){dir.normalize();const speed=mode==='creative'?8:5;const nx=player.x+dir.x*speed*dt,nz=player.z+dir.z*speed*dt;if(mode==='creative'){player.x=nx;player.z=nz}else{if(!collides(nx,player.y,player.z))player.x=nx;if(!collides(player.x,player.y,nz))player.z=nz}}if(gameStarted&&!paused&&mode==='creative'&&move.y<-.1)player.y+=dt*3;else if(gameStarted&&!paused){velY-=19*dt;const nextY=player.y+velY*dt;if(velY<=0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else if(velY>0&&!collides(player.x,nextY,player.z)){player.y=nextY;onGround=false}else{if(velY<0){player.y=Math.floor(nextY)+1;onGround=true}else{player.y=Math.ceil(nextY)-1.75;onGround=false}velY=0}}eye();const currentChunkX=Math.floor(player.x/CHUNK),currentChunkZ=Math.floor(player.z/CHUNK);if(currentChunkX!==lastPlayerChunkX||currentChunkZ!==lastPlayerChunkZ){lastPlayerChunkX=currentChunkX;lastPlayerChunkZ=currentChunkZ;loadAround()}sun.position.x=-25+Math.sin(elapsed*.025)*10;sun.intensity=1.8+Math.sin(elapsed*.025)*.25;if(Math.floor(elapsed/75)+1>day){day++;document.querySelector('#stats').textContent='❤ ♥ ♥ ♥ ♥　☀ День '+day}renderer.render(scene,camera)}
 loop();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5))});
 document.querySelector('#loading').remove();
