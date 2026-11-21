@@ -6,8 +6,13 @@ import { TerrainGenerator, BIOMES } from '../world/TerrainGenerator.js';
 const root=document.querySelector('#game');
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x87918f);
-scene.fog=new THREE.Fog(0x87918f,17,72);
+// Lightweight painted sky gradient instead of a flat grey background.
+const skyCanvas=document.createElement('canvas');skyCanvas.width=4;skyCanvas.height=256;
+const skyCtx=skyCanvas.getContext('2d'),skyGradient=skyCtx.createLinearGradient(0,0,0,256);
+skyGradient.addColorStop(0,'#477eaa');skyGradient.addColorStop(.48,'#8db8ce');skyGradient.addColorStop(1,'#d4d9c9');
+skyCtx.fillStyle=skyGradient;skyCtx.fillRect(0,0,4,256);
+const skyTexture=new THREE.CanvasTexture(skyCanvas);skyTexture.colorSpace=THREE.SRGBColorSpace;scene.background=skyTexture;
+scene.fog=new THREE.Fog(0xb9c9c5,28,105);
 const camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.08,150);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(devicePixelRatio);renderer.setSize(innerWidth,innerHeight);
@@ -114,7 +119,23 @@ function rebuildChunk(cx,cz){
   }
  }
  const group=[],dummy=new THREE.Object3D();
- for(const [type,coords] of Object.entries(buckets)){const mesh=new THREE.InstancedMesh(cube,materials[type]||materials.grass,coords.length);mesh.userData.coords=coords;coords.forEach((p,i)=>{dummy.position.set(p[0]+.5,p[1]+.5,p[2]+.5);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix)});mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);group.push(mesh)}
+ const foliageGeometry=new THREE.IcosahedronGeometry(.68,1);
+ const trunkGeometry=new THREE.CylinderGeometry(.34,.43,1,8,1);
+ for(const [type,coords] of Object.entries(buckets)){
+  // Rounded low-poly foliage and tapered trunks replace cube-shaped tree parts.
+  const geometry=type==='leaves'?foliageGeometry:type==='wood'?trunkGeometry:cube;
+  const mesh=new THREE.InstancedMesh(geometry,materials[type]||materials.grass,coords.length);mesh.userData.coords=coords;
+  if(['grass','leaves','dirt'].includes(type))mesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(coords.length*3),3);
+  coords.forEach((p,i)=>{
+   dummy.position.set(p[0]+.5,p[1]+.5,p[2]+.5);
+   if(type==='leaves'){const s=.9+hash(p[0],p[2])*.28;dummy.scale.set(s,.88+hash(p[2],p[0])*.3,s);dummy.rotation.set(0,hash(p[0]+4,p[2]+7)*.35,0)}
+   else{dummy.scale.set(1,1,1);dummy.rotation.set(0,0,0)}
+   dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
+   if(mesh.instanceColor){const v=hash(p[0]+31,p[2]-17),color=new THREE.Color();color.setHSL(type==='leaves'?.31:.27,type==='leaves'?.48:.42,.92+v*.08);mesh.setColorAt(i,color)}
+  });
+  mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+  mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);group.push(mesh)
+ }
  chunkMeshes.set(ck,group);loadedChunks.add(ck);
 }
 function solidAt(x,y,z){const k=key(x,y,z);return blocks.has(k)?blocks.get(k)!==null:generatedBlock(x,y,z)!==null}
