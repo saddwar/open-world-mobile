@@ -12,7 +12,7 @@ const skyCtx=skyCanvas.getContext('2d'),skyGradient=skyCtx.createLinearGradient(
 skyGradient.addColorStop(0,'#477eaa');skyGradient.addColorStop(.48,'#8db8ce');skyGradient.addColorStop(1,'#d4d9c9');
 skyCtx.fillStyle=skyGradient;skyCtx.fillRect(0,0,4,256);
 const skyTexture=new THREE.CanvasTexture(skyCanvas);skyTexture.colorSpace=THREE.SRGBColorSpace;scene.background=skyTexture;
-scene.fog=new THREE.Fog(0xb9c9c5,55,205);
+scene.fog=new THREE.Fog(0xb9c9c5,Math.max(55,Math.min(420,RADIUS*7)),Math.max(205,Math.min(700,RADIUS*12)));
 const camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.08,240);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(devicePixelRatio);renderer.setSize(innerWidth,innerHeight);
@@ -170,7 +170,7 @@ function rebuildChunk(cx,cz,lod=0){
 }
 function solidAt(x,y,z){const k=key(x,y,z);return blocks.has(k)?blocks.get(k)!==null:generatedBlock(x,y,z)!==null}
 function collides(px,py,pz){const r=.29,h=1.75;for(let x=Math.floor(px-r);x<=Math.floor(px+r);x++)for(let z=Math.floor(pz-r);z<=Math.floor(pz+r);z++)for(let y=Math.floor(py+.001);y<=Math.floor(py+h-.001);y++)if(solidAt(x,y,z))return true;return false}
-function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK);for(let x=px-RADIUS;x<=px+RADIUS;x++)for(let z=pz-RADIUS;z<=pz+RADIUS;z++){const dx=x-px,dz=z-pz,d=Math.max(Math.abs(dx),Math.abs(dz)),lod=d>4?2:d>2?1:0,ck=chunkKey(x,z);if((!loadedChunks.has(ck)||chunkLods.get(ck)!==lod)&&!queuedChunks.has(ck)){chunkQueue.push({x,z,d:Math.abs(dx)+Math.abs(dz),lod});queuedChunks.add(ck)}}chunkQueue.sort((a,b)=>a.d-b.d);for(const ck of [...loadedChunks]){const [x,z]=ck.split(',').map(Number);if(Math.abs(x-px)>RADIUS+1||Math.abs(z-pz)>RADIUS+1){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck);chunkLods.delete(ck)}}chunkQueue.splice(0,chunkQueue.length,...chunkQueue.filter(q=>Math.abs(q.x-px)<=RADIUS&&Math.abs(q.z-pz)<=RADIUS));loadAnimalsAround(px,pz)}
+function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK),streamRadius=Math.min(RADIUS,42),budget=1800,candidates=[];for(let x=px-streamRadius;x<=px+streamRadius;x++)for(let z=pz-streamRadius;z<=pz+streamRadius;z++){const dx=x-px,dz=z-pz,d=Math.max(Math.abs(dx),Math.abs(dz));if(d>streamRadius)continue;const lod=d>12?2:d>4?1:0;candidates.push({x,z,d,lod})}candidates.sort((a,b)=>a.d-b.d);const wanted=candidates.slice(0,budget),wantedKeys=new Set(wanted.map(q=>chunkKey(q.x,q.z)));for(const q of wanted){const ck=chunkKey(q.x,q.z);if((!loadedChunks.has(ck)||chunkLods.get(ck)!==q.lod)&&!queuedChunks.has(ck)){chunkQueue.push({...q});queuedChunks.add(ck)}}chunkQueue.sort((a,b)=>a.d-b.d);for(const ck of [...loadedChunks])if(!wantedKeys.has(ck)){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck);chunkLods.delete(ck)}chunkQueue.splice(0,chunkQueue.length,...chunkQueue.filter(q=>wantedKeys.has(chunkKey(q.x,q.z))));loadAnimalsAround(px,pz)}
 function processChunkQueue(){const next=chunkQueue.shift();if(!next)return;const ck=chunkKey(next.x,next.z);queuedChunks.delete(ck);if(!loadedChunks.has(ck)||chunkLods.get(ck)!==next.lod)rebuildChunk(next.x,next.z,next.lod);}
 function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k)&&blocks.get(k)!==null)return false;blocks.set(k,type);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return true}
 function removeBlock(x,y,z){const k=key(x,y,z),old=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!old)return null;blocks.set(k,null);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return old}
@@ -324,7 +324,7 @@ $('pause-button').onclick=togglePause;
 $('back-menu').onclick=()=>{gameStarted=false;paused=false;document.body.classList.remove('game-active');hideScreen('pause-menu');hideScreen('settings-panel');showScreen('main-menu');move={x:0,y:0}};
 $('fov-setting').oninput=e=>{camera.fov=Number(e.target.value);camera.updateProjectionMatrix();$('fov-value').textContent=e.target.value+'°'};
 $('sens-setting').oninput=e=>{sensitivity=Number(e.target.value)/1000;$('sens-value').textContent=sensitivity.toFixed(3)};
-$('distance-setting').oninput=e=>{RADIUS=Number(e.target.value);$('distance-value').textContent=RADIUS+' чанка';loadAround()};
+$('distance-setting').oninput=e=>{RADIUS=Number(e.target.value);$('distance-value').textContent=RADIUS+' чанков';scene.fog.near=Math.max(55,Math.min(420,RADIUS*7));scene.fog.far=Math.max(205,Math.min(700,RADIUS*12));camera.far=Math.max(240,Math.min(760,RADIUS*13));camera.updateProjectionMatrix();loadAround()};
 $('quality-setting').onchange=e=>{const q=quality[e.target.value];renderer.setPixelRatio(devicePixelRatio);renderer.shadowMap.enabled=q.shadows;sun.castShadow=q.shadows;renderer.shadowMap.needsUpdate=true;renderer.setSize(innerWidth,innerHeight)};
 $('fps-setting').onchange=e=>{showFps=e.target.checked;if(!showFps)$('fps-counter').textContent=''};
 
