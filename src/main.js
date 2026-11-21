@@ -46,7 +46,7 @@ function texture(type,base){
  // Structured, block-specific pixel patterns rather than random noise.
  for(let y=0;y<16;y++)for(let x=0;x<16;x++){
   let idx=0;
-  if(type==='grass')idx=y<3?(x%4===0?2:1):((x*7+y*11)%13===0?3:0);
+  if(type==='grass')idx=(x*7+y*11)%13===0?3:((x*3+y*5)%9===0?2:((x+y)%4===0?1:0));
   else if(type==='dirt')idx=(x*3+y*5)%17===0?4:((x+y*2)%7===0?1:0);
   else if(type==='stone'||type==='coal')idx=(x*5+y*3)%19===0?4:((x*2+y*7)%9===0?1:0);
   else if(type==='wood')idx=x%5===0?3:(x%4===1?2:((y%6===0)?1:0));
@@ -58,7 +58,6 @@ function texture(type,base){
   else if(type==='flower')idx=y>8?((x+y)%4===0?1:0):((x===7||x===8||y===5||y===6)?2:((x===6&&y===4)?4:0));
   if(idx){g.fillStyle=p[idx];g.fillRect(x,y,1,1)}
  }
- if(type==='grass'){g.fillStyle=p[0];g.fillRect(0,3,16,13);g.fillStyle=p[1];for(let x=0;x<16;x+=3)g.fillRect(x,2,2,1)}
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;t.generateMipmaps=false;return t;
 }
 const materials={};
