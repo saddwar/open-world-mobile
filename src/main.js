@@ -167,9 +167,18 @@ function attachAnimalModel(wrapper,type){
  const model=cloneSkeleton(template.scene);
  model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
  const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3());
- const targetHeight=type==='cow'?1.45:type==='sheep'?1.0:0.9;
- const scale=targetHeight/Math.max(size.y,.001);model.scale.setScalar(scale);
- const scaledBounds=new THREE.Box3().setFromObject(model);model.position.y-=scaledBounds.min.y;
+ // Fit the complete mob inside sensible world dimensions. Some source models
+ // have unusually wide bounds, so scaling by height alone makes them look flat.
+ const targetHeight=type==='cow'?1.35:type==='sheep'?.95:.9;
+ const targetFootprint=type==='cow'?1.25:type==='sheep'?1.05:.95;
+ const scale=Math.min(targetHeight/Math.max(size.y,.001),targetFootprint/Math.max(size.x,size.z,.001));
+ model.scale.setScalar(scale);
+ const scaledBounds=new THREE.Box3().setFromObject(model);
+ model.position.set(
+  -(scaledBounds.min.x+scaledBounds.max.x)/2,
+  -scaledBounds.min.y,
+  -(scaledBounds.min.z+scaledBounds.max.z)/2
+ );
  wrapper.add(model);wrapper.userData.modelAttached=true;
  const mixer=new THREE.AnimationMixer(model);
  const clips=template.animations;
