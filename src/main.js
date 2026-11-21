@@ -12,8 +12,8 @@ const skyCtx=skyCanvas.getContext('2d'),skyGradient=skyCtx.createLinearGradient(
 skyGradient.addColorStop(0,'#477eaa');skyGradient.addColorStop(.48,'#8db8ce');skyGradient.addColorStop(1,'#d4d9c9');
 skyCtx.fillStyle=skyGradient;skyCtx.fillRect(0,0,4,256);
 const skyTexture=new THREE.CanvasTexture(skyCanvas);skyTexture.colorSpace=THREE.SRGBColorSpace;scene.background=skyTexture;
-scene.fog=new THREE.Fog(0xb9c9c5,28,105);
-const camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.08,150);
+scene.fog=new THREE.Fog(0xb9c9c5,55,205);
+const camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.08,240);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(devicePixelRatio);renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -86,7 +86,7 @@ for(const [id,, ,color] of defs){const tex=texture(id,color);materials[id]=new T
 materials.flower=new THREE.MeshStandardMaterial({color:0xe6a6d0,roughness:.78});
 materials.water=new THREE.MeshStandardMaterial({color:0x4bafd0,roughness:.18,metalness:.08,transparent:true,opacity:.68,depthWrite:false});
 const cube=new THREE.BoxGeometry(1,1,1),blocks=new Map(),chunkMeshes=new Map();
-const key=(x,y,z)=>x+','+y+','+z,CHUNK=16,loadedChunks=new Set(),chunkQueue=[],queuedChunks=new Set();let RADIUS=3;
+const key=(x,y,z)=>x+','+y+','+z,CHUNK=16,loadedChunks=new Set(),chunkQueue=[],queuedChunks=new Set(),chunkLods=new Map();let RADIUS=6;
 function chunkKey(x,z){return x+','+z}
 function hash(x,z){let n=(Math.imul(x,374761393)+Math.imul(z,668265263))|0;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967295}
 const terrain=new TerrainGenerator(20261120);
@@ -99,7 +99,7 @@ function generatedBlock(x,y,z,treeBlocks=null,heightCache=null){
  if(y<=h)return terrain.blockAt(x,y,z)||null;
  return treeBlocks?.get(key(x,y,z))||null;
 }
-function rebuildChunk(cx,cz){
+function rebuildChunk(cx,cz,lod=0){
  const ck=chunkKey(cx,cz);for(const m of chunkMeshes.get(ck)||[])scene.remove(m);
  const buckets={},minX=cx*CHUNK,minZ=cz*CHUNK,maxX=minX+CHUNK-1,maxZ=minZ+CHUNK-1;
  const heightCache=new Map(),treeBlocks=new Map(),voxelCache=new Map();
@@ -141,8 +141,8 @@ function rebuildChunk(cx,cz){
   }
  }
  const group=[],dummy=new THREE.Object3D();
- const foliageGeometry=new THREE.IcosahedronGeometry(.72,1);
- const trunkGeometry=new THREE.CylinderGeometry(.25,.34,1,7,1);
+ const foliageGeometry=new THREE.IcosahedronGeometry(.72,lod===0?1:0);
+ const trunkGeometry=new THREE.CylinderGeometry(.25,.34,1,lod===0?7:5,1);
  for(const [type,coords] of Object.entries(buckets)){
   // Rounded low-poly foliage and tapered trunks replace cube-shaped tree parts.
   const geometry=type==='leaves'?foliageGeometry:type==='wood'?trunkGeometry:cube;
@@ -156,7 +156,7 @@ function rebuildChunk(cx,cz){
    if(mesh.instanceColor){const v=hash(p[0]+31,p[2]-17),color=new THREE.Color();color.setHSL(type==='leaves'?.31:.27,type==='leaves'?.48:.42,.92+v*.08);mesh.setColorAt(i,color)}
   });
   mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
-  mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);group.push(mesh)
+  mesh.castShadow=lod===0;mesh.receiveShadow=lod===0;mesh.computeBoundingSphere();scene.add(mesh);group.push(mesh)
  }
  // Add calm water planes in low terrain basins.
  const waterCoords=[];
@@ -166,12 +166,12 @@ function rebuildChunk(cx,cz){
   waterCoords.forEach((p,i)=>{wm.position.set(p[0],p[1],p[2]);wm.rotation.x=-Math.PI/2;wm.updateMatrix();water.setMatrixAt(i,wm.matrix)});
   water.instanceMatrix.needsUpdate=true;water.renderOrder=2;scene.add(water);group.push(water);
  }
- chunkMeshes.set(ck,group);loadedChunks.add(ck);
+ chunkMeshes.set(ck,group);loadedChunks.add(ck);chunkLods.set(ck,lod);
 }
 function solidAt(x,y,z){const k=key(x,y,z);return blocks.has(k)?blocks.get(k)!==null:generatedBlock(x,y,z)!==null}
 function collides(px,py,pz){const r=.29,h=1.75;for(let x=Math.floor(px-r);x<=Math.floor(px+r);x++)for(let z=Math.floor(pz-r);z<=Math.floor(pz+r);z++)for(let y=Math.floor(py+.001);y<=Math.floor(py+h-.001);y++)if(solidAt(x,y,z))return true;return false}
-function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK);for(let x=px-RADIUS;x<=px+RADIUS;x++)for(let z=pz-RADIUS;z<=pz+RADIUS;z++){const ck=chunkKey(x,z);if(!loadedChunks.has(ck)&&!queuedChunks.has(ck)){chunkQueue.push({x,z,d:Math.abs(x-px)+Math.abs(z-pz)});queuedChunks.add(ck)}}chunkQueue.sort((a,b)=>a.d-b.d);for(const ck of [...loadedChunks]){const [x,z]=ck.split(',').map(Number);if(Math.abs(x-px)>RADIUS+1||Math.abs(z-pz)>RADIUS+1){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck)}}loadAnimalsAround(px,pz)}
-function processChunkQueue(){const next=chunkQueue.shift();if(!next)return;const ck=chunkKey(next.x,next.z);queuedChunks.delete(ck);if(!loadedChunks.has(ck))rebuildChunk(next.x,next.z);}
+function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK);for(let x=px-RADIUS;x<=px+RADIUS;x++)for(let z=pz-RADIUS;z<=pz+RADIUS;z++){const dx=x-px,dz=z-pz,d=Math.max(Math.abs(dx),Math.abs(dz)),lod=d>4?2:d>2?1:0,ck=chunkKey(x,z);if((!loadedChunks.has(ck)||chunkLods.get(ck)!==lod)&&!queuedChunks.has(ck)){chunkQueue.push({x,z,d:Math.abs(dx)+Math.abs(dz),lod});queuedChunks.add(ck)}}chunkQueue.sort((a,b)=>a.d-b.d);for(const ck of [...loadedChunks]){const [x,z]=ck.split(',').map(Number);if(Math.abs(x-px)>RADIUS+1||Math.abs(z-pz)>RADIUS+1){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck);chunkLods.delete(ck)}}chunkQueue.splice(0,chunkQueue.length,...chunkQueue.filter(q=>Math.abs(q.x-px)<=RADIUS&&Math.abs(q.z-pz)<=RADIUS));loadAnimalsAround(px,pz)}
+function processChunkQueue(){const next=chunkQueue.shift();if(!next)return;const ck=chunkKey(next.x,next.z);queuedChunks.delete(ck);if(!loadedChunks.has(ck)||chunkLods.get(ck)!==next.lod)rebuildChunk(next.x,next.z,next.lod);}
 function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k)&&blocks.get(k)!==null)return false;blocks.set(k,type);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return true}
 function removeBlock(x,y,z){const k=key(x,y,z),old=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!old)return null;blocks.set(k,null);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return old}
 // Player camera is truly first-person; only a small arm and held block are visible.
