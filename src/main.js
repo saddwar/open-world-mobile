@@ -170,7 +170,7 @@ function rebuildChunk(cx,cz,lod=0){
 }
 function solidAt(x,y,z){const k=key(x,y,z);return blocks.has(k)?blocks.get(k)!==null:generatedBlock(x,y,z)!==null}
 function collides(px,py,pz){const r=.29,h=1.75;for(let x=Math.floor(px-r);x<=Math.floor(px+r);x++)for(let z=Math.floor(pz-r);z<=Math.floor(pz+r);z++)for(let y=Math.floor(py+.001);y<=Math.floor(py+h-.001);y++)if(solidAt(x,y,z))return true;return false}
-function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK),streamRadius=Math.min(RADIUS,8),candidates=[];for(let x=px-streamRadius;x<=px+streamRadius;x++)for(let z=pz-streamRadius;z<=pz+streamRadius;z++){const dx=x-px,dz=z-pz,d=Math.max(Math.abs(dx),Math.abs(dz));if(d>streamRadius)continue;const lod=d>6?2:d>3?1:0;candidates.push({x,z,d,lod})}candidates.sort((a,b)=>a.d-b.d);const wanted=candidates,wantedKeys=new Set(wanted.map(q=>chunkKey(q.x,q.z)));for(const q of wanted){const ck=chunkKey(q.x,q.z);if((!loadedChunks.has(ck)||chunkLods.get(ck)!==q.lod)&&!queuedChunks.has(ck)){chunkQueue.push({...q});queuedChunks.add(ck)}}chunkQueue.sort((a,b)=>a.d-b.d);for(const ck of [...loadedChunks])if(!wantedKeys.has(ck)){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck);chunkLods.delete(ck)}chunkQueue.splice(0,chunkQueue.length,...chunkQueue.filter(q=>wantedKeys.has(chunkKey(q.x,q.z))));loadAnimalsAround(px,pz)}
+function loadAround(){const px=Math.floor(player.x/CHUNK),pz=Math.floor(player.z/CHUNK),streamRadius=Math.min(RADIUS,5),candidates=[];for(let x=px-streamRadius;x<=px+streamRadius;x++)for(let z=pz-streamRadius;z<=pz+streamRadius;z++){const dx=x-px,dz=z-pz,d=Math.max(Math.abs(dx),Math.abs(dz));if(d>streamRadius)continue;const lod=d>6?2:d>3?1:0;candidates.push({x,z,d,lod})}candidates.sort((a,b)=>a.d-b.d);const wanted=candidates,wantedKeys=new Set(wanted.map(q=>chunkKey(q.x,q.z)));for(const q of wanted){const ck=chunkKey(q.x,q.z);if((!loadedChunks.has(ck)||chunkLods.get(ck)!==q.lod)&&!queuedChunks.has(ck)){chunkQueue.push({...q});queuedChunks.add(ck)}}chunkQueue.sort((a,b)=>a.d-b.d);for(const ck of [...loadedChunks])if(!wantedKeys.has(ck)){for(const m of chunkMeshes.get(ck)||[])scene.remove(m);chunkMeshes.delete(ck);loadedChunks.delete(ck);chunkLods.delete(ck)}chunkQueue.splice(0,chunkQueue.length,...chunkQueue.filter(q=>wantedKeys.has(chunkKey(q.x,q.z))));loadAnimalsAround(px,pz)}
 function processChunkQueue(){const next=chunkQueue.shift();if(!next)return;const ck=chunkKey(next.x,next.z);queuedChunks.delete(ck);if(!loadedChunks.has(ck)||chunkLods.get(ck)!==next.lod)rebuildChunk(next.x,next.z,next.lod);}
 function addBlock(x,y,z,type='grass'){const k=key(x,y,z);if(blocks.has(k)&&blocks.get(k)!==null)return false;blocks.set(k,type);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return true}
 function removeBlock(x,y,z){const k=key(x,y,z),old=blocks.has(k)?blocks.get(k):generatedBlock(x,y,z);if(!old)return null;blocks.set(k,null);rebuildChunk(Math.floor(x/CHUNK),Math.floor(z/CHUNK));return old}
@@ -251,7 +251,8 @@ function makeAnimal(type,x,z){
  scene.add(group);animalList.push(group);attachFallbackAnimal(group,type);attachAnimalModel(group,type);return group;
 }
 function loadAnimalsAround(px,pz){
- for(let cx=px-RADIUS;cx<=px+RADIUS;cx++)for(let cz=pz-RADIUS;cz<=pz+RADIUS;cz++){
+ const animalRadius=Math.min(RADIUS,2);
+ for(let cx=px-animalRadius;cx<=px+animalRadius;cx++)for(let cz=pz-animalRadius;cz<=pz+animalRadius;cz++){
   const ck=chunkKey(cx,cz);if(animalChunks.has(ck))continue;
   const animals=[],plants=[],r=hash(cx+902,cz-411);
   if(cx===0&&cz===0){const starters=[['pig',5,5],['cow',10,6],['sheep',7,12]];for(const [type,x,z] of starters)animals.push(makeAnimal(type,x,z));}
@@ -259,7 +260,7 @@ function loadAnimalsAround(px,pz){
   for(let n=0;n<12;n++){const x=cx*CHUNK+hash(cx*31+n,cz*17)*CHUNK,z=cz*CHUNK+hash(cx*19,cz*29+n)*CHUNK,bx=Math.floor(x),bz=Math.floor(z),biome=terrain.biomeAt(bx,bz),h=heightAt(bx,bz);if(hash(bx*3,bz*3)<(biome===BIOMES.FOREST?.48:biome===BIOMES.JUNGLE?.58:.82)||h<=2||biome===BIOMES.DESERT||biome===BIOMES.MOUNTAINS)continue;const plant=new THREE.Group();plant.position.set(x,h+.03,z);const stem=new THREE.Mesh(new THREE.CylinderGeometry(.018,.027,.3,5),new THREE.MeshLambertMaterial({color:0x43843b}));stem.position.y=.15;plant.add(stem);const palette=[0xf4d45e,0xf0b6d0,0xffffff,0xb9a4f2,0xe98b55],flower=new THREE.Mesh(new THREE.DodecahedronGeometry(.105+hash(bx+5,bz+7)*.045,0),new THREE.MeshLambertMaterial({color:palette[Math.floor(hash(bx+9,bz+3)*palette.length)]}));flower.position.y=.32;plant.add(flower);scene.add(plant);plants.push(plant)}
   animalChunks.set(ck,animals);plantChunks.set(ck,plants)
  }
- for(const ck of [...animalChunks.keys()]){const [cx,cz]=ck.split(',').map(Number);if(Math.abs(cx-px)>RADIUS+1||Math.abs(cz-pz)>RADIUS+1){for(const a of animalChunks.get(ck)){scene.remove(a);const i=animalList.indexOf(a);if(i>=0)animalList.splice(i,1)}for(const p of plantChunks.get(ck)||[])scene.remove(p);animalChunks.delete(ck);plantChunks.delete(ck)}}
+ for(const ck of [...animalChunks.keys()]){const [cx,cz]=ck.split(',').map(Number);if(Math.abs(cx-px)>animalRadius+1||Math.abs(cz-pz)>animalRadius+1){for(const a of animalChunks.get(ck)){scene.remove(a);const i=animalList.indexOf(a);if(i>=0)animalList.splice(i,1)}for(const p of plantChunks.get(ck)||[])scene.remove(p);animalChunks.delete(ck);plantChunks.delete(ck)}}
 }
 function updateAnimals(dt,time){
  for(const a of animalList){
